@@ -30,7 +30,9 @@
 - **Shared agent config:** do not edit `~/.omnigent`, `~/.agents`, or skill dirs in place. Repo config is the source of truth, applied with `scripts/apply-config.sh`, which snapshots first (`~/.agents/behaviors/shared-config-edits/BEHAVIOR.md`).
 - **Every on-stage claim carries a source URL** in `docs/research/facts.md`. Unverified claims are tagged `[UNVERIFIED]` and must not reach slides.
 - Commit messages end with `Co-authored-by: Isaac <no-reply@databricks.com>`.
-- Talk length assumption: **40 min** (30 talk/demo + 10 Q&A). Adjust in Task 14 once the slot is confirmed.
+- Talk length: **60 min slot** (45 talk/demo + 15 Q&A), confirmed 2026-11-01.
+- **The repo is public at talk time.** Nothing in git may contain workspace hostnames or URLs, workspace or org IDs, user emails, warehouse IDs, Lakebase instance names, or screenshots that show any of these. All of these go in `.env.local`. Generic foundation-model endpoint names (e.g. a `databricks-gemini-*` name) are fine to commit. Check every screenshot added to `talk/fallbacks/` before committing it.
+- **Two workspaces are allowed.** The GCP workspace (`DBX_PROFILE`) is primary. An AWS workspace (`DBX_AWS_PROFILE`) may host agent memory and/or serverless sandbox *only if* Task 2 finds them unavailable on GCP. Say so openly on stage.
 
 ## Review Focus
 
@@ -66,17 +68,21 @@ The planning session could not fetch docs directly (WebFetch was denied). The fa
 
 | # | Segment | Min | Live demo | Databricks "why it matters to Google devs" beat |
 |---|---|---|---|---|
+60-min slot: 45 min of content (below) + 15 min Q&A.
+
+| # | Segment | Min | Live demo | Databricks "why it matters to Google devs" beat |
+|---|---|---|---|---|
 | 1 | Hook: "I built this talk with 4 agents and 6 models. Here's the receipt." Show the repo's LESSONS and CHECKPOINTS | 2 | repo tour | — |
 | 2 | Problem: harness lock-in. Each agent CLI has its own config, auth, skills, and policies | 3 | — | — |
-| 3 | Omnigent as a meta-harness: architecture (server, harnesses, providers, policies, UI) | 4 | `omni` overview | — |
-| 4 | Harness engineering: one agent spec, four harnesses (Claude Code, Codex, Pi, **Antigravity**) | 5 | switch harness live | One credential (a Databricks profile) for all of them |
-| 5 | **Gemini on Databricks on GCP**: Unity AI Gateway, Gemini 4 Argon, native Gemini API for `agy` | 4 | agy driven by Databricks Gemini | Governance (UC permissions, rate limits, budgets) applied to Gemini |
-| 6 | Smart routing: Auto mode picks harness and model per task | 3 | 3 scripted prompts | Gateway-side routing and fallbacks |
-| 7 | Contextual policies: budget, GitHub write scope, data residency | 3 | allowed and denied action | Data stays governed by Unity Catalog |
-| 8 | Observability: every call and skill traced | 3 | `system.ai_gateway.usage` and MLflow traces | One SQL-queryable audit trail across vendors |
-| 9 | Agents that remember and act safely: Lakebase memory and serverless sandbox | 4 | recall across sessions, run code in sandbox | Managed Postgres plus isolated compute, no infra |
-| 10 | Usability: collaborate on a live session, continue on an Android phone | 2 | join from phone | — |
-| 11 | Recap, how to try it (links, QR to repo) | 1 | — | — |
+| 3 | Omnigent as a meta-harness: architecture (server, harnesses, providers, policies, UI), plus a tour of features beyond coding agents | 5 | `omni` overview | — |
+| 4 | Harness engineering: one agent spec, four harnesses (Claude Code, Codex, Pi, **Antigravity**) | 7 | switch harness live | One credential (a Databricks profile) for all of them |
+| 5 | **Gemini on Databricks on GCP**: Unity AI Gateway, Gemini 4 Argon, native Gemini API for `agy`. Full Antigravity setup walkthrough | 6 | agy driven by Databricks Gemini | Governance (UC permissions, rate limits, budgets) applied to Gemini |
+| 6 | Smart routing: Auto mode picks harness and model per task | 4 | 3 scripted prompts | Gateway-side routing and fallbacks |
+| 7 | Contextual policies: budget, GitHub write scope, data residency | 4 | allowed and denied action | Data stays governed by Unity Catalog |
+| 8 | Observability: every call and skill traced | 4 | `system.ai_gateway.usage` and MLflow traces | One SQL-queryable audit trail across vendors |
+| 9 | Agents that remember and act safely: Lakebase memory and serverless sandbox | 6 | recall across sessions, run code in sandbox | Managed Postgres plus isolated compute, no infra |
+| 10 | Usability: collaborate on a live session, continue on an Android phone | 3 | join and steer from phone | — |
+| 11 | Recap, how to try it (links, QR to the public repo) | 1 | — | — |
 
 ## File Structure
 
@@ -153,6 +159,7 @@ talk/fallbacks/*.mov
 
 ```bash
 DBX_PROFILE=            # GCP workspace profile from ~/.databrickscfg — presenter chooses
+DBX_AWS_PROFILE=        # optional AWS workspace for memory/sandbox if not on GCP (Task 2) — presenter chooses
 GEMINI_ENDPOINT=        # Unity AI Gateway endpoint name for Gemini 4 Argon (Task 3)
 GEMINI_FLASH_ENDPOINT=  # cheaper Gemini endpoint for routing contrast (Task 3)
 LAKEBASE_INSTANCE=      # Lakebase instance for agent memory (Task 11)
@@ -171,6 +178,12 @@ fail=0
 if git ls-files -z --cached --others --exclude-standard \
    | xargs -0 grep -nIE '(dapi[0-9a-f]{32}|AIza[0-9A-Za-z_-]{35}|sk-[A-Za-z0-9]{20,}|ya29\.[0-9A-Za-z_-]+|"refresh_token")' 2>/dev/null; then
   echo "check: possible secret found (above)"; fail=1
+fi
+# 1b. public repo: no workspace hostnames (docs.databricks.com links are fine)
+if git ls-files -z --cached --others --exclude-standard \
+   | xargs -0 grep -nIE '[a-z0-9-]+\.(cloud|gcp)\.databricks\.com|adb-[0-9]+\.[0-9]+\.azuredatabricks\.net' 2>/dev/null \
+   | grep -v 'docs\.'; then
+  echo "check: workspace hostname found (above) — move it to .env.local"; fail=1
 fi
 # 2. yaml parses
 for f in $(git ls-files --cached --others --exclude-standard '*.yaml' '*.yml'); do
@@ -210,7 +223,7 @@ Co-authored-by: Isaac <no-reply@databricks.com>"
 
 - [ ] **Step 1:** For each row in Research Status, open the URL and copy the **exact** config keys, commands, and quotes into `facts.md`. Use the `databricks-docs` skill for Databricks pages and WebFetch for omnigent.ai and GitHub.
 - [ ] **Step 2:** Also capture what's missing from the Omnigent docs: the full feature list beyond coding agents (e.g. scheduled tasks, inbox/async calls, browser tools, skills loading, sys_* tools, agent download/registry). These feed the "full scope" slide.
-- [ ] **Step 3:** Confirm on the GCP docs: the Gemini 4 Argon release-note date, the endpoint name pattern, whether Unity AI Gateway exposes the **native Gemini API** route that `agy` needs, and whether **agent memory** and **serverless sandbox** are available on **GCP** (the user's links are AWS docs). If either is unavailable on GCP, record it and decide in Task 11/12 whether to demo on an AWS workspace and say so on stage.
+- [ ] **Step 3:** Confirm on the GCP docs: the Gemini 4 Argon release-note date, the endpoint name pattern, whether Unity AI Gateway exposes the **native Gemini API** route that `agy` needs, and whether **agent memory** and **serverless sandbox** are available on **GCP** (the user's links are AWS docs). If either is unavailable on GCP, record it. Tasks 11/12 then run that feature on the AWS workspace (`DBX_AWS_PROFILE`, approved by the presenter 2026-11-01), and the speaker notes say so openly.
 - [ ] **Step 4:** Flip each row's status in this plan to VERIFIED or WRONG (with the correction).
 - [ ] **Step 5: Verify:** `grep -c "| UNVERIFIED |" docs/superpowers/plans/2026-11-01-omnigent-meta-harness-talk.md` → `0`.
 - [ ] **Step 6:** Commit (`docs: verify talk facts against primary sources`).
@@ -223,6 +236,7 @@ Co-authored-by: Isaac <no-reply@databricks.com>"
 **Interfaces:**
 - Produces: `GEMINI_ENDPOINT` and `GEMINI_FLASH_ENDPOINT` values (in `.env.local`, and in `config/versions.env` if the names aren't sensitive). Usage tracking and inference tables are enabled on those endpoints.
 
+- [ ] **Step 0: BLOCKED until the presenter provides the GCP profile name.** Tasks 1–2 can run before this.
 - [ ] **Step 1:** Load skills `databricks-core` and `databricks-model-serving`. The presenter chooses the GCP profile and sets `DBX_PROFILE` in `.env.local`. Confirm it is GCP: `databricks auth describe --profile "$DBX_PROFILE"` shows a `*.gcp.databricks.com` host.
 - [ ] **Step 2:** Find the Gemini endpoints: `databricks serving-endpoints list --profile "$DBX_PROFILE" -o json | jq -r '.[].name' | grep -i gemini`. Record the names in `.env.local` and `config/versions.env`.
 - [ ] **Step 3:** In the Unity AI Gateway UI or API, enable **usage tracking** and **inference tables** for those endpoints, plus a rate limit, so they can be shown on stage. Screenshot the settings to `talk/fallbacks/gateway-settings.png`.
@@ -637,10 +651,15 @@ exit $ok
 
 ---
 
-## Open Questions for the Presenter
+## Decisions (presenter, 2026-11-01)
 
-1. Which Databricks **GCP** profile or workspace will host the demo? (Of the profiles seen, `fevm-cjc` or a new FEVM GCP workspace seem likely. Your call.)
-2. Talk slot length, and the audience mix (app devs vs ML/data folks)?
-3. If agent memory or serverless sandbox isn't available on GCP yet, is a separate AWS workspace OK for that segment (stated openly), or should it be cut?
-4. Should the attendee-facing repo be public on GitHub at talk time? This affects how much workspace detail stays in tracked files.
-5. Do you have an Android device for the mobile demo, and a second account for the collaboration demo?
+1. **GCP profile:** to be provided later. Task 3 onward is blocked until then. Tasks 1–2 can proceed.
+2. **Slot:** 60 min. The narrative is rebalanced to 45 min of content + 15 min Q&A.
+3. **AWS workspace:** OK for agent memory / serverless sandbox if they're not on GCP. Disclose this on stage.
+4. **Repo:** public at talk time. See the public-repo constraint in Global Constraints.
+5. **Android:** the presenter has a device and already uses the app. The mobile demo stays in.
+
+## Still Open
+
+- Audience mix (app devs vs ML/data folks). This affects how deep segments 8–9 go. Confirm in Task 14.
+- A second account or person for the collaboration demo (Task 13 Step 1).
