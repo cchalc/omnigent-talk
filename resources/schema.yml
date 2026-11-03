@@ -1,0 +1,6 @@
+resources:
+  schemas:
+    omnigent_talk:
+      catalog_name: ${var.catalog}
+      name: ${var.schema}
+      comment: Unity Gateway model services and inference tables for the omnigent-talk demos

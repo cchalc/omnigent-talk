@@ -1,0 +1,47 @@
+# Model services are Beta in DABs. `just gateway-apply` is the CLI fallback for the same shapes.
+resources:
+  model_services:
+    # Traffic split 80/20 across two Gemini Flash versions, with an ordered fallback.
+    gemini_router:
+      parent: schemas/${resources.schemas.omnigent_talk.catalog_name}.${resources.schemas.omnigent_talk.name}
+      model_service_id: gemini_router
+      comment: "omnigent-talk: 80/20 split across Gemini Flash versions, falls back to 3.5 Flash"
+      config:
+        routing:
+          destinations:
+            - name: flash_3_8
+              destination_type: DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL
+              pay_per_token_config:
+                model: models/system.ai.databricks-gemini-3-8-flash
+              traffic_percentage: 80
+            - name: flash_3_7
+              destination_type: DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL
+              pay_per_token_config:
+                model: models/system.ai.databricks-gemini-3-7-flash
+              traffic_percentage: 20
+          fallback:
+            destinations:
+              - name: flash_3_5
+                destination_type: DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL
+                pay_per_token_config:
+                  model: models/system.ai.databricks-gemini-3-5-flash
+        rate_limits:
+          - key: RATE_LIMIT_KEY_USER_DEFAULT
+            renewal_period: RATE_LIMIT_RENEWAL_PERIOD_MINUTE
+            requests: ${var.requests_per_minute}
+
+    # Tiers for "custom routing": the caller picks the tier. The gateway itself only
+    # documents splits, fallbacks and session affinity, not rule-based routing. The agy shim's
+    # --lite flag sends agy's background calls to gemini_fast and its turns to gemini_router.
+    gemini_fast:
+      parent: schemas/${resources.schemas.omnigent_talk.catalog_name}.${resources.schemas.omnigent_talk.name}
+      model_service_id: gemini_fast
+      comment: "omnigent-talk: cheap tier for background and trivial calls"
+      config:
+        routing:
+          destinations:
+            - name: flash_lite
+              destination_type: DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL
+              pay_per_token_config:
+                model: models/system.ai.databricks-gemini-3-1-flash-lite
+              traffic_percentage: 100

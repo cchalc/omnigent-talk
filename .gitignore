@@ -224,3 +224,8 @@ __marimo__/
 .isaac/
 mtime-test-*/
 talk/fallbacks/*.mov
+# uv.lock records the index URL, and locally that is an internal mirror; CI resolves from PyPI.
+uv.lock
+# bundle state
+.databricks/
+talk/fallbacks/*.mp4

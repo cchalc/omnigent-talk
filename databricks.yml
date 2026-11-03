@@ -1,0 +1,21 @@
+# Unity Gateway resources for the talk demos. Run through `just gateway-*`, which passes the
+# profile and the catalog/schema from .env.local. Nothing workspace-specific lives here.
+bundle:
+  name: omnigent_talk
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Catalog that holds the demo schema (set in .env.local as CATALOG)
+  schema:
+    description: Schema for the model services and inference tables
+    default: omnigent_talk
+  requests_per_minute:
+    description: Per-user request limit on gemini_router, kept low so the 429 demo trips quickly
+    default: 30
+
+targets:
+  dev:
+    default: true
