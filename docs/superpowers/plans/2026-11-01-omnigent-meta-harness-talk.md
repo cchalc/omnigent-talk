@@ -543,11 +543,16 @@ exit $ok
 7. **Tracking:** follow ai-kitchen-dbx conventions (`tasks.md` / `checkpoint.md` / `lessons.md`).
 8. **Plan lives on `main`** (merged from `worktree-87fc0046`).
 
+2026-11-02 (later):
+9. **Upgraded:** omnigent CLI → `0.22.0.dev0` (git `08b7d804`, tracks `omnigent-ai/omnigent` main; extras `antigravity, databricks`). The remote server reports `0.21.0.dev0`. `omni agy` is available. agy `1.4.12` is installed at `~/.local/bin/agy` (official installer, SHA-512 verified). Its `agy install` shell-config step was **skipped**, because the rc files are home-manager symlinks and `~/.local/bin` is already on PATH. Task 4 Step 1 and Task 6 Step 1 are done; pin these in `config/versions.env` during Task 1.
+
 ## Lessons to seed (`lessons.md`, Task 1 Step 5)
 
 - **2026-11-01 — Planning without tools produces a plausible but wrong plan.** *What:* the first planning session had no Bash/WebFetch, so 12/12 facts were unverified, and on 2026-11-02 most needed correction (product name, smart routing layer, memory API, sandbox cloud, policy support). *Why it matters:* verify against primary docs before building. *Tags:* #research #talk
 - **2026-11-02 — Managed Omnigent rejects Python policies.** *What:* Databricks-hosted Omnigent supports built-in and CEL policies only, and `PolicyEvent` has no cwd. *Why it matters:* residency is expressed in CEL over tool-call arguments and tested offline with the real factory. *Tags:* #omnigent #policies #talk
 - **2026-11-02 — Project `.omnigent/config.yaml` replaces non-harness keys wholesale.** *What:* only `harness:` deep-merges, so a repo `providers:` block would hide the user's providers. *Why it matters:* demos use `--server`, and `~/.omnigent` is never touched. *Tags:* #omnigent #config
+- **2026-11-02 — `omni upgrade --dry-run` upgraded for real.** *What:* on a git-tracking install, `--dry-run` printed the resolution and then installed it. *Why it matters:* use `--check` to look without changing anything. *Tags:* #omnigent #talk
+- **2026-11-02 — agy's installer edits shell rc files.** *What:* the final `agy install` step configures the shell, but on a nix/home-manager machine the rc files are read-only store symlinks. *Why it matters:* strip that step and rely on `~/.local/bin` already being on PATH. *Tags:* #nix #antigravity
 - **2026-11-02 — A research subagent was blocked by auto mode.** *What:* the Databricks-docs research subagent was refused, so the docs were fetched inline instead. *Why it matters:* permission modes are a visible safety feature, and plans should not depend on a single delegation path. *Tags:* #permissions #talk
 
 ## Still Open
