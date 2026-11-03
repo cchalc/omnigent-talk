@@ -6,7 +6,7 @@
 
 **Architecture:** The repo holds secret-free Omnigent agent specs and policies, small demo scripts for the Databricks pieces (Unity Gateway usage and tracing, Skills, agent memory, Databricks Sandbox), the talk itself (outline, speaker notes, demo runbook), and a tracking layer (`tasks.md` / `checkpoint.md` / `lessons.md`, the ai-kitchen-dbx convention) so the build process can be shown on stage too. Demos run against the presenter's **existing Databricks-hosted Omnigent server** (AWS workspace). Every demo has a scripted happy path, a verification command, and a pre-recorded fallback.
 
-**Tech Stack:** Omnigent ≥ v0.20.0 (`omni` CLI, managed server on Databricks, web UI, Android app). Harnesses: Claude Code (`claude-sdk`), Codex, Pi, Antigravity (`antigravity-native`, `omni agy`). Databricks: **Unity Gateway** (Gemini 4 Argon, Gemini 3.8 Flash, Smart Routing, service policies, Skills), `system.ai_gateway.usage`, the built-in usage dashboard, the unified trace table, agent memory (`databricks-agentbricks`), and Databricks Sandbox. Python via `uv`. Databricks CLI ≥ v1.17.
+**Tech Stack:** Omnigent ≥ v0.20.0 (`omni` CLI, managed server on Databricks, web UI, Android app). Harnesses: Claude Code (`claude-sdk`), Codex, Pi, Antigravity (`antigravity-native`, `omni agy`). Databricks: **Unity Gateway** (Gemini 3.8 Flash live via `system.ai.gemini-3-8-flash`; Gemini 4 Argon mentioned from the release note; Smart Routing, service policies, Skills), `system.ai_gateway.usage`, the built-in usage dashboard, the unified trace table, agent memory (`databricks-agentbricks`), and Databricks Sandbox. Python via `uv`. Databricks CLI ≥ v1.17.
 
 **Spec:** No separate spec doc. The source brief is below. Verified facts live in `docs/research/facts.md`.
 
@@ -51,7 +51,7 @@ Verified 2026-11-02 against primary sources (docs.databricks.com/gcp unless note
 
 | Claim | Status | Correct detail |
 |---|---|---|
-| Gemini 4 Argon on Unity Gateway | VERIFIED | Oct 13 2026, available via Foundation Model APIs. No endpoint name or region given; discover the endpoint name in the workspace. Gemini 3.8 Flash (Sep 2) and 3.7 Flash (Aug 13) are also available. |
+| Gemini 4 Argon on Unity Gateway | VERIFIED | Oct 13 2026, available via Foundation Model APIs. No endpoint name or region given, and **not served on the FEVM demo workspace**, so it's mentioned only, never demoed (decision 11). Live demos use Gemini 3.8 Flash (Sep 2), as `system.ai.gemini-3-8-flash`. |
 | Product name | CORRECTED | It's **Unity Gateway** (CLI `ug`), not "Unity AI Gateway". The system table stays `system.ai_gateway.usage`. |
 | `system.ai_gateway.usage` coding-agent metadata | VERIFIED | `session_metadata{client_session_id, client_subagent_id, coding_agent, agent_version, surface, reasoning_effort, smart_router_name}`, `invocation_metadata.source`, `destination_model`, `endpoint_name`, `requester`, `input/output/total_tokens`, `latency_ms`, `routing_information`, `mcp_metadata`, `request_tags`. No cost column. Built-in usage dashboard has Overview / Spend / Coding Agents / MCPs / **Skills** / Performance tabs. |
 | Tracing | CORRECTED | The **unified trace table** (Beta) puts every gateway request and response in one UC table. Coding-agent tracing goes through `ug`. Inference tables can be attached per service. Not "MLflow traces". |
@@ -80,7 +80,7 @@ Verified 2026-11-02 against primary sources (docs.databricks.com/gcp unless note
 | 2 | Problem: harness lock-in. Each agent CLI has its own config, auth, skills, and policies | 3 | — | — |
 | 3 | Omnigent as a meta-harness: server, harnesses, providers, policies, UI, plus a full-scope tour (Polly/Debby, scheduled tasks, Slack, sandboxes). *Omnigent on Databricks* is the managed server | 5 | `omni` overview, web UI | Managed server behind your workspace IdP |
 | 4 | Harness engineering: one agent YAML across four harnesses (Claude Code, Codex, Pi, **Antigravity**). Direct vs Native TUI | 7 | switch harness live | One credential (a Databricks profile) for all of them |
-| 5 | **Gemini on Databricks**: Gemini 4 Argon + 3.8 Flash on Unity Gateway; the native Gemini API for `agy`; full Antigravity setup walkthrough | 6 | `omni agy` driven by Databricks-served Gemini | UC permissions, rate limits, and budgets apply to Gemini like any other model |
+| 5 | **Gemini on Databricks**: live on Gemini 3.8 Flash through Unity Gateway's native Gemini API; one slide on **Gemini 4 Argon** (Oct 13 release note: it's on Unity Gateway, and new Gemini models land there as they ship); full Antigravity setup walkthrough | 6 | `omni agy --model gemini-3.8-flash` on Databricks-served Gemini | UC permissions, rate limits, and budgets apply to Gemini like any other model |
 | 6 | Smart Routing: Unity Gateway picks the cheapest capable model per subagent | 4 | Smart Routing session; show the per-subagent models | Routing as a governed platform service |
 | 7 | Contextual policies, two layers: Omnigent (budget + CEL residency) and Unity Gateway service policies (sensitive-data guardrail) | 4 | an allowed and a denied action | Governance enforced at the gateway, whatever the harness |
 | 8 | Observability: built-in usage dashboard (Coding Agents + **Skills** tabs), `system.ai_gateway.usage`, unified trace table | 5 | dashboard + one SQL query | One SQL-queryable audit trail across vendors and harnesses |
@@ -217,7 +217,7 @@ exit $fail
 
 - [ ] **Step 0: BLOCKED until the presenter confirms which profile(s) to use** (`DBX_PROFILE`, optional `DBX_GCP_PROFILE`).
 - [ ] **Step 1:** Load skills `databricks-core` and `databricks-model-serving`. Run `databricks auth describe --profile "$DBX_PROFILE"` to confirm the profile (do not print the token).
-- [ ] **Step 2:** Find the Gemini models: `databricks serving-endpoints list --profile "$DBX_PROFILE" -o json | jq -r '.[].name' | grep -i gemini`. If the gateway lists models as `system.ai.*` services, use those names. Record them in `.env.local` and `config/versions.env`.
+- [ ] **Step 2:** Confirm the Gemini model services. Done 2026-11-02 on `fevm-cjc`: `system.ai.gemini-3-8-flash` (live) and `system.ai.gemini-3-1-flash-lite` (contrast). Legacy `databricks-gemini-*` endpoints return 403. Record both names in `config/versions.env` (generic names are safe to commit).
 - [ ] **Step 3:** Confirm Unity Gateway usage tracking is on (it's on by default since Jul 17 2026). Optionally attach an inference table and a rate limit to show on stage. Screenshot the settings to `talk/fallbacks/gateway-settings.png` and redact the hostname.
 - [ ] **Step 4: Write `demos/05-tracing/smoke.sh`**
 
@@ -225,12 +225,17 @@ exit $fail
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname "$0")/../../.env.local"
-databricks serving-endpoints query "$GEMINI_MODEL" --profile "$DBX_PROFILE" \
-  --json '{"messages":[{"role":"user","content":"Reply with exactly: pong"}],"max_tokens":10}' \
-  | jq -r '.choices[0].message.content'
+# Native Gemini route, the same one omni agy's adapter uses. Brace ${m}: zsh/bash treat $m:g as a modifier.
+m=${1:-$GEMINI_MODEL}
+host=$(databricks auth describe --profile "$DBX_PROFILE" -o json | jq -r '.details.host')
+token=$(databricks auth token --profile "$DBX_PROFILE" | jq -r '.access_token')
+curl -fsS -X POST "${host}/ai-gateway/gemini/v1beta/models/${m}:generateContent" \
+  -H "Authorization: Bearer ${token}" -H 'Content-Type: application/json' \
+  -d '{"contents":[{"role":"user","parts":[{"text":"Reply with exactly: pong"}]}]}' \
+  | jq -r '.candidates[0].content.parts[0].text'
 ```
 
-- [ ] **Step 5: Verify:** `bash demos/05-tracing/smoke.sh` → output contains `pong`. Repeat with `GEMINI_FLASH_MODEL`.
+- [ ] **Step 5: Verify:** `bash demos/05-tracing/smoke.sh` → output contains `pong`. Repeat with `bash demos/05-tracing/smoke.sh "$GEMINI_FLASH_MODEL"`. (`.details.host` from `auth describe` was verified 2026-11-02; `auth env` is deprecated.)
 - [ ] **Step 6:** Add a `lessons.md` entry and commit (`feat: gemini via unity gateway smoke test`).
 
 ### Task 4: Omnigent upgrade and server connection
