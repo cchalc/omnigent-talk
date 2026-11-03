@@ -43,10 +43,21 @@ Normally Omnigent sets the second layer from its provider (`omni-fevm setup` →
 
 1. In the FEVM workspace, go to **Settings → Previews** and enable **Omnigent** (and **Databricks Sandbox** for the sandbox demo).
    Check: `databricks api get /api/2.0/omnigent/v1/me --profile fevm-cjc` returns your user, not `Not Found`.
-2. `omni-fevm setup`: choose *Databricks — workspace* → `fevm-cjc`, and enable pi, agy, claude, and codex. For Antigravity, choose *Configure native agy API key / gateway* → Databricks profile (writes `native_gemini: true`) and use model `system.ai.gemini-3-8-flash`.
-3. `omni-fevm login https://<fevm-workspace>` (browser), then `omni-fevm host`, then `omni-fevm diagnose`.
+2. `omni-fevm login https://<fevm-workspace>`. It reuses the Databricks CLI's `fevm-cjc` OAuth grant, so no browser is needed.
+3. `omni-fevm setup` → **Antigravity → Configure native agy API key / gateway → Databricks → `fevm-cjc`**. This writes provider `databricks-gemini-fevm-cjc` with `native_gemini: true`. If setup says agy is "already signed in", that's agy's own Google login, which is fine: a configured Gemini provider takes precedence over it.
+4. Give pi a FEVM provider. Otherwise it borrows Codex's `~/.codex/config.toml`, which points at another workspace:
+   ```yaml
+   databricks-fevm: {kind: databricks, profile: fevm-cjc, default: pi}
+   ```
+5. `omni-fevm host --background --no-open`, then `omni-fevm host status` (expect `host=online`). Stop it with **`omni-fevm host stop`**. The printed hint `omnigent host stop` targets the daily home instead.
 
 If something fails: `omni-fevm stop` (400), then `omni-fevm login <ws>` (401), then `omni-fevm setup` (412).
+
+### Model names per harness (the gotchas)
+- **agy (native):** pick the model *inside* agy: `/model` → **Gemini 3.8 Flash**. On omnigent `0.22.0.dev0`, `omni agy --model …` is dropped on the remote-server path (`model_override=None`), and agy's default `gemini-3.1-pro-preview` isn't served by FEVM. agy's list also shows **Gemini 4 Argon**, which this AWS workspace doesn't serve (Argon is GCP-only).
+- **pi (direct `run --harness pi`):** use the serving-endpoint name **`databricks-claude-sonnet-5-5`**. Direct pi on a `kind: databricks` provider calls `/serving-endpoints`, where `system.ai.*` names return 404.
+- **claude-sdk (direct):** `system.ai.claude-sonnet-5-5` works (Anthropic gateway surface).
+- **`--harness antigravity`** is the Antigravity *SDK* harness and wants a raw `GEMINI_API_KEY`. The Databricks route only applies to native `omni agy`.
 
 ## Where does each harness's traffic land?
 
