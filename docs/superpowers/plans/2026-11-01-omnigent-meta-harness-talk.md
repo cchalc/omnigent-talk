@@ -4,130 +4,125 @@
 
 **Goal:** Turn this repo into both (a) the live demo environment and (b) the build log for a Google developer conference talk: *"One harness to rule them all: Omnigent as a meta-harness, with Gemini on Databricks."*
 
-**Architecture:** The repo holds checked-in, secret-free Omnigent config (providers, agents, routing, policies), small demo scripts for the Databricks pieces (Unity AI Gateway tracing, agent memory on Lakebase, serverless sandbox), the talk itself (outline, speaker notes, demo runbook), and a tracking layer (tasks / checkpoints / lessons) so the build process can be shown on stage too. Every demo has a scripted happy path, a verification command, and a pre-recorded fallback.
+**Architecture:** The repo holds secret-free Omnigent agent specs and policies, small demo scripts for the Databricks pieces (Unity Gateway usage and tracing, Skills, agent memory, Databricks Sandbox), the talk itself (outline, speaker notes, demo runbook), and a tracking layer (`tasks.md` / `checkpoint.md` / `lessons.md`, the ai-kitchen-dbx convention) so the build process can be shown on stage too. Demos run against the presenter's **existing Databricks-hosted Omnigent server** (AWS workspace). Every demo has a scripted happy path, a verification command, and a pre-recorded fallback.
 
-**Tech Stack:** Omnigent (`omni` CLI, server, web UI, Android app), harnesses: Claude Code, Codex, Pi, Antigravity (`agy`); Databricks on GCP: Unity AI Gateway (Gemini 4 "Argon" + others), `system.ai_gateway.usage`, inference tables, MLflow tracing, Lakebase agent memory, serverless sandbox; Python via `uv`; Databricks CLI v1.17+.
+**Tech Stack:** Omnigent ≥ v0.20.0 (`omni` CLI, managed server on Databricks, web UI, Android app). Harnesses: Claude Code (`claude-sdk`), Codex, Pi, Antigravity (`antigravity-native`, `omni agy`). Databricks: **Unity Gateway** (Gemini 4 Argon, Gemini 3.8 Flash, Smart Routing, service policies, Skills), `system.ai_gateway.usage`, the built-in usage dashboard, the unified trace table, agent memory (`databricks-agentbricks`), and Databricks Sandbox. Python via `uv`. Databricks CLI ≥ v1.17.
 
-**Spec:** No separate spec doc. The source brief is copied into the "Source Brief" section below. Executors should treat it as the spec.
+**Spec:** No separate spec doc. The source brief is below. Verified facts live in `docs/research/facts.md`.
 
 ## Source Brief (from the user, 2026-11-01)
 
 - Talk at a **Google developer conference**. The repo tracks everything done and gets presented alongside the coding agents and techniques used to build it.
 - Central theme: **set up and configure Omnigent as a meta-harness** to switch between harnesses and models, with smart routing and more (https://omnigent.ai/docs/use/coding-agents), including Omnigent features beyond coding agents.
-- Cover the **full scope** of Omnigent, with a focus on: **harness engineering, smart routing, contextual policies, usability (collaboration, mobile app)**.
+- Cover the **full scope** of Omnigent, with a focus on **harness engineering, smart routing, contextual policies, and usability (collaboration, mobile app)**.
 - Highlight **Gemini as a foundation model on Databricks**, and Databricks itself running **on GCP**. Cite https://docs.databricks.com/gcp/en/release-notes/unity-gateway/#google-gemini-4-argon-is-now-available-on-unity-gateway.
-- Set up **Antigravity**: https://omnigent.ai/docs/build/harnesses/configuration#antigravity and #configure-native-agy-credentials. Walk through what the setup looks like and how to configure Omnigent to run it well.
-- Show **tracing of model calls with Unity AI Gateway** and **skill usage on Databricks**.
+- Set up **Antigravity**: https://omnigent.ai/docs/build/harnesses/configuration#antigravity and #configure-native-agy-credentials.
+- Show **tracing of model calls through the gateway** and **skill usage on Databricks**.
 - Show **agent memory** (https://docs.databricks.com/aws/en/agents/custom-agents/stateful-agents) and **serverless sandbox** (https://docs.databricks.com/aws/en/compute/serverless/sandbox).
 - Soft theme throughout: **Databricks platform features and why they matter to Google developers**.
 - Track tasks, checkpoints, and lessons the way `/Users/christopher.chalcraft/Projects/Databricks/ai-kitchen-dbx` does.
 
 ## Global Constraints
 
-- **Never use Homebrew.** Install with `uv`, `uv tool`, `npm`, `nix`, or the official curl installers (see `~/.agents/behaviors/package-management/BEHAVIOR.md`).
-- **Never auto-select a Databricks profile.** All commands use `--profile "$DBX_PROFILE"`. The presenter sets `DBX_PROFILE` once in `.env.local`, which is gitignored. The talk workspace must be a **GCP** workspace.
-- **No secrets in git.** Tokens, API keys, OAuth files, and workspace hostnames you don't want public go in `.env.local` or `~/.omnigent/`, never in tracked files. Run `scripts/check.sh` (Task 1), which greps for token patterns, before every commit.
-- **Shared agent config:** do not edit `~/.omnigent`, `~/.agents`, or skill dirs in place. Repo config is the source of truth, applied with `scripts/apply-config.sh`, which snapshots first (`~/.agents/behaviors/shared-config-edits/BEHAVIOR.md`).
+- **Never use Homebrew.** Install with `uv`, `uv tool`, `npm`, `nix`, or official curl installers (`~/.agents/behaviors/package-management/BEHAVIOR.md`).
+- **Never auto-select a Databricks profile.** Commands use `--profile "$DBX_PROFILE"` (or `$DBX_GCP_PROFILE`). The presenter sets these in `.env.local`, which is gitignored.
+- **Never modify `~/.omnigent`.** It is the presenter's live, daily-use config. Demo scripts pass `--server "$OMNI_SERVER"`. If a repo-local `.omnigent/config.yaml` is used, it may only contain `server:` / `harness:` keys. Project config replaces every non-`harness` key wholesale, so a repo `providers:` block would hide the presenter's providers.
+- **No secrets in git.** Tokens, keys, and OAuth files stay in `.env.local`, the OS keychain, or `~/.omnigent/`. Run `scripts/check.sh` before every commit.
+- **The repo is public at talk time.** Nothing in git may contain workspace hostnames or URLs (including `OMNI_SERVER`), workspace or org IDs, user emails, warehouse IDs, or screenshots that show any of these. Generic model names (`system.ai.*`, `databricks-gemini-*`) are fine.
 - **Every on-stage claim carries a source URL** in `docs/research/facts.md`. Unverified claims are tagged `[UNVERIFIED]` and must not reach slides.
 - Commit messages end with `Co-authored-by: Isaac <no-reply@databricks.com>`.
-- Talk length: **60 min slot** (45 talk/demo + 15 Q&A), confirmed 2026-11-01.
-- **The repo is public at talk time.** Nothing in git may contain workspace hostnames or URLs, workspace or org IDs, user emails, warehouse IDs, Lakebase instance names, or screenshots that show any of these. All of these go in `.env.local`. Generic foundation-model endpoint names (e.g. a `databricks-gemini-*` name) are fine to commit. Check every screenshot added to `talk/fallbacks/` before committing it.
-- **Two workspaces are allowed.** The GCP workspace (`DBX_PROFILE`) is primary. An AWS workspace (`DBX_AWS_PROFILE`) may host agent memory and/or serverless sandbox *only if* Task 2 finds them unavailable on GCP. Say so openly on stage.
+- Talk length: **60 min slot** (45 talk/demo + 15 Q&A).
+- **Cross-cloud honesty.** The Omnigent server and Databricks Sandbox run on the AWS workspace (Sandbox is AWS-only today). The Gemini, Unity Gateway, and agent-memory story is shown with the GCP docs, and on a GCP workspace if one is available (`DBX_GCP_PROFILE`, optional). Say this openly on one slide.
 
 ## Review Focus
 
-1. **Conference Wi-Fi fails or a workspace or endpoint is slow.** Each demo must have a recorded fallback (`talk/fallbacks/`), and the runbook must say when to switch to it (Task 14 dry run).
-2. **Model or endpoint names change before the talk.** Gemini endpoint names, harness model IDs, and Omnigent versions are pinned in `config/versions.env` and checked by `scripts/preflight.sh` (Task 13), which fails loudly instead of failing live.
-3. **Secrets leaking on screen or into git.** This covers OAuth files, `~/.databrickscfg`, and terminal history. `scripts/check.sh` guards git (Task 1). The runbook has a "screen hygiene" checklist (Task 14).
-4. **The routing demo picks an unexpected harness or model.** The routing demo prompts are written to have one obvious winner. The test in Task 7 asserts the router's choice for each scripted prompt before stage time.
-5. **A policy blocks the presenter mid-demo.** The cost budget and the data-residency policy are tested so the happy-path prompts pass and the "deny" prompt is denied (Task 8 unit tests and a smoke test).
+1. **Conference Wi-Fi fails or an endpoint is slow.** Each demo has a recorded fallback (`talk/fallbacks/`), and the runbook says when to switch (Task 14).
+2. **Versions or model names drift.** Omnigent, agy, and model names are pinned in `config/versions.env` and checked by `scripts/preflight.sh` (Task 13).
+3. **Secrets on screen or in git.** `scripts/check.sh` (Task 1) and the runbook's screen-hygiene checklist (Task 14) cover this.
+4. **Smart Routing is nondeterministic and has no dry-run.** Routing assertions check "routing happened, and the models used are within the expected set", never exact picks (Task 7).
+5. **A policy blocks the presenter mid-demo.** CEL policies are unit-tested offline against the real `cel_policy` factory, then smoke-tested (Task 8).
+6. **Beta features.** Smart Routing, Skills API, agent memory, Sandbox, the unified trace table, and Omnigent on Databricks are all Beta, and Antigravity is a *community-supported* Omnigent harness. Label them as such on slides. Each needs a fallback.
 
 ---
 
-## Research Status (read first)
+## Research Status
 
-The planning session could not fetch docs directly (WebFetch was denied). The facts below come from web-search summaries and **must be verified in Task 2** before anyone builds on them.
+Verified 2026-11-02 against primary sources (docs.databricks.com/gcp unless noted; omnigent.ai; github.com/omnigent-ai/omnigent; installed package source). Exact quotes and URLs are in `docs/research/facts.md`.
 
-| Claim | Source to verify | Status |
+| Claim | Status | Correct detail |
 |---|---|---|
-| Omnigent is a meta-harness over Claude Code, Codex, Pi, Antigravity, etc. It has Direct and Native-TUI harness modes | omnigent.ai/docs/build/harnesses/supported | UNVERIFIED |
-| Antigravity harness: `pip install "omnigent[antigravity]"`, `harness: antigravity`, aliases `agy`, `google-antigravity` | omnigent.ai/docs/build/harnesses/configuration#antigravity, github omnigent-ai/omnigent docs/AGENT_YAML_SPEC.md | UNVERIFIED |
-| Native agy creds: macOS Keychain (agy ≥1.1.7), `~/.gemini/oauth_creds.json` (macOS), `~/.gemini/antigravity-cli/antigravity-oauth-token` (Linux). The native harness needs a gateway exposing the **native Gemini API**, not an OpenAI-compatible route | omnigent.ai/docs/build/harnesses/configuration#configure-native-agy-credentials | UNVERIFIED |
-| `omni setup` with a Databricks profile writes a provider like `databricks-gemini-<profile>` with `native_gemini: true` | omnigent.ai/docs/build/models | UNVERIFIED |
-| Smart routing: server `llm:` block (judge model, `fallback_models`) or `routing: {provider: external, base_url, router_name, ...}`, plus an "Auto · smart routing" option in the UI | omnigent.ai/docs/reference/configuration/routing | UNVERIFIED |
-| Policies: `policies:` in server config or agent YAML. Each has `type: function`, `handler: <dotted path>`, `factory_params`. Builtins include `cost.cost_budget`, `safety.max_tool_calls_per_session`, `github.github_policy`. `PolicyEvent` includes `conversation_id` | github omnigent-ai/omnigent docs/POLICIES.md | UNVERIFIED |
-| Collaboration: share a live session by URL, comment inline, steer. The same session runs across terminal, web, and mobile. An Android app is on Google Play | omnigent.ai/docs/collaborate, /docs/interact/mobile | UNVERIFIED |
-| `omni diagnose` prints a secret-free environment snapshot | omnigent.ai/releases | UNVERIFIED |
-| Databricks docs host an Omnigent quickstart on GCP | docs.databricks.com/gcp/en/omnigent/quickstart | UNVERIFIED |
-| Gemini 4 "Argon" is available on Unity Gateway (GCP) | user-supplied release-note anchor | user-supplied, confirm date and endpoint name |
-| `system.ai_gateway.usage` includes coding-agent session metadata and invocation source. Inference tables log payloads | docs.databricks.com/gcp/en/ai-gateway/usage-tracking | UNVERIFIED |
-| Agent memory: Lakebase-backed short-term memory (LangGraph `CheckpointSaver`) and long-term memory (`DatabricksStore`) in `databricks-langchain[memory]` | user-supplied stateful-agents URL | confirm API names |
-| Serverless sandbox: isolated serverless Linux env for agent-generated code | user-supplied sandbox URL | confirm API, GCP availability, and preview status |
+| Gemini 4 Argon on Unity Gateway | VERIFIED | Oct 13 2026, available via Foundation Model APIs. No endpoint name or region given; discover the endpoint name in the workspace. Gemini 3.8 Flash (Sep 2) and 3.7 Flash (Aug 13) are also available. |
+| Product name | CORRECTED | It's **Unity Gateway** (CLI `ug`), not "Unity AI Gateway". The system table stays `system.ai_gateway.usage`. |
+| `system.ai_gateway.usage` coding-agent metadata | VERIFIED | `session_metadata{client_session_id, client_subagent_id, coding_agent, agent_version, surface, reasoning_effort, smart_router_name}`, `invocation_metadata.source`, `destination_model`, `endpoint_name`, `requester`, `input/output/total_tokens`, `latency_ms`, `routing_information`, `mcp_metadata`, `request_tags`. No cost column. Built-in usage dashboard has Overview / Spend / Coding Agents / MCPs / **Skills** / Performance tabs. |
+| Tracing | CORRECTED | The **unified trace table** (Beta) puts every gateway request and response in one UC table. Coding-agent tracing goes through `ug`. Inference tables can be attached per service. Not "MLflow traces". |
+| Skills on Databricks | VERIFIED | Unity Gateway Skills REST API (Beta, Oct 12), central org config of skills, the dashboard **Skills** tab (downloads and loads by user), and audit-log service `aiGatewaySkills` (list, load, file fetch). |
+| Smart Routing | CORRECTED | This is Unity Gateway **Smart Routing (Beta)**. It picks the lowest-cost capable `system.ai.*` model, and each subagent is routed independently. It covers Claude Code + Codex only. It needs the *Enhanced Unity Gateway* account preview. In Omnigent ≥0.8, pick **Smart Routing** as the harness in the UI, or run `omni claude --smart-routing`. Gemini/Antigravity are not routed harnesses (Gemini can still be a routed *model*). Omnigent's own `llm:` / `routing: {provider: external, ...}` blocks enable the Auto picker. No dry-run. |
+| Policies | CORRECTED | **Databricks-hosted Omnigent supports only built-in policies and CEL custom policies. Custom Python policies are not supported.** CEL: `handler: omnigent.policies.builtins.cel.cel_policy`, `factory_params: {expression, reason}`. The expression sees `event.type`, `event.target`, `event.data.{name, arguments}`, `event.context.{model, harness, usage, labels}` and returns `{"result": "DENY"\|"ASK"\|"ALLOW", "reason": ...}`. `PolicyEvent` has **no cwd**. Platform side: UC **service policies** on Unity Gateway (Sensitive Data Detection guardrail, request-tag checks, MCP prompt-injection screening, external guardrail vendors). |
+| Harness modes | VERIFIED | Direct mode (Omnigent runs model + tools) vs Native TUI (`*-native`). 18 harnesses in 3 support tiers; Antigravity is **community-supported**. |
+| Antigravity harness | CORRECTED | Harness `antigravity-native`, launched by `omni agy` (aliases `agy`, `google-antigravity`; added in v0.12). Install agy with `curl -fsSL https://antigravity.google/cli/install.sh \| bash`, **≥ 1.1.13**. |
+| Native agy credentials | VERIFIED | `omni setup` → Antigravity → *Configure native agy API key / gateway* → *Databricks profile* writes `native_gemini: true`. **The native Gemini API is required.** OpenAI-compatible and Bearer/token-refresh gateways are unsupported. Creds: macOS Keychain (agy ≥1.1.7), `~/.gemini/oauth_creds.json`, `~/.gemini/antigravity-cli/antigravity-oauth-token` (Linux). Databricks lists Gemini CLI (`ug gemini`) as a supported agent, which suggests a native Gemini route exists. Confirm it in Task 6. |
+| Collaboration and mobile | CORRECTED | Share with Read or Edit. With Edit, collaborators "co-drive": their messages run on the owner's machine and are labeled with their email. `omni attach <session_id>`. **Inline comments are not documented, so they're dropped.** Android `ai.omnigent.android` on Google Play, plus iOS and an installable PWA. |
+| `omni diagnose` / `omni usage` / `omni sandbox` | VERIFIED | `omni diagnose [--json]`, `omni usage [--json]`, `omni sandbox create/connect` (modal / daytona / islo). |
+| Agent YAML | CORRECTED | `name`, `prompt`, `executor.{harness, model, auth}`, `policies`. **There is no `extends`.** The local 0.9 parser reads `executor.type` + `executor.config`, while the docs show `executor.harness`. Re-check after upgrading. |
+| Omnigent on Databricks | VERIFIED | Managed server (Beta) with workspace IdP and models via FMAPI / Unity Gateway. Hosts are a Databricks Sandbox (select AWS regions) or a self-registered machine (`omni login <ws>`, `omni host --server <ws>`). A GCP page exists (`/gcp/en/omnigent/`). |
+| Agent memory | CORRECTED | "Agent memory and sessions" (Beta; GCP page exists). `pip install databricks-agentbricks` (≥0.6.0). `AgentKitClient(WorkspaceClient()).memory_stores.create(id)`, `.add/.put(actor_id, path, content, description)`, `.search(actor_id, query, limit)`. Lakebase-backed with no separate setup. **`actor_id` scopes recall but is not access control**; isolate with one store per boundary. The old `DatabricksStore` / `CheckpointSaver` approach is not what the docs show. The doc's install name (`databricks-agentbricks`) and import (`databricks_agentkit`) differ, so verify on install. |
+| Serverless sandbox | CORRECTED | **Databricks Sandbox** (Beta, opt-in on the Previews page). **AWS only** (the GCP page 404s). 4 vCPU / 8 GB, 100 GB persistent home, 24 h runtime cap, ingress closed, **egress unrestricted**. SDK: `w.sandbox.create_sandbox(sandbox_id=...)`, `w.sandbox.execute_command_sync(..., args=[...], execution_timeout=Duration(...))`, `w.sandbox.delete_sandbox("sandboxes/<id>")`. CLI: `databricks sandbox create / ssh`. Agent Bricks: `agentbricks tools add sandbox --scope ...`. |
+| Latest Omnigent | VERIFIED | **v0.20.0 (2026-10-28)**. Local install is 0.9.0.dev0 (2026-08-10), so upgrade. Relevant changes: v0.12 `omni agy`; v0.17 period budgets and `conversation_id`; v0.19 MCP gateway with policy checks; v0.20 restricts unregistered policy handlers in uploaded bundles. |
+| Omnigent full scope | VERIFIED | Polly (multi-agent orchestrator) and Debby (brainstorming) bundled agents, scheduled tasks, inbox / async calls, browser tools, skills, Slack integration (`omni integration slack`), cloud sandboxes, REST API, macOS app, mobile. |
 
 ## Talk Narrative (target shape — finalized in Task 14)
 
-| # | Segment | Min | Live demo | Databricks "why it matters to Google devs" beat |
-|---|---|---|---|---|
 60-min slot: 45 min of content (below) + 15 min Q&A.
 
 | # | Segment | Min | Live demo | Databricks "why it matters to Google devs" beat |
 |---|---|---|---|---|
-| 1 | Hook: "I built this talk with 4 agents and 6 models. Here's the receipt." Show the repo's LESSONS and CHECKPOINTS | 2 | repo tour | — |
+| 1 | Hook: "I built this talk with 4 harnesses and N models. Here's the receipt." Show `lessons.md` and git history | 2 | repo tour | — |
 | 2 | Problem: harness lock-in. Each agent CLI has its own config, auth, skills, and policies | 3 | — | — |
-| 3 | Omnigent as a meta-harness: architecture (server, harnesses, providers, policies, UI), plus a tour of features beyond coding agents | 5 | `omni` overview | — |
-| 4 | Harness engineering: one agent spec, four harnesses (Claude Code, Codex, Pi, **Antigravity**) | 7 | switch harness live | One credential (a Databricks profile) for all of them |
-| 5 | **Gemini on Databricks on GCP**: Unity AI Gateway, Gemini 4 Argon, native Gemini API for `agy`. Full Antigravity setup walkthrough | 6 | agy driven by Databricks Gemini | Governance (UC permissions, rate limits, budgets) applied to Gemini |
-| 6 | Smart routing: Auto mode picks harness and model per task | 4 | 3 scripted prompts | Gateway-side routing and fallbacks |
-| 7 | Contextual policies: budget, GitHub write scope, data residency | 4 | allowed and denied action | Data stays governed by Unity Catalog |
-| 8 | Observability: every call and skill traced | 4 | `system.ai_gateway.usage` and MLflow traces | One SQL-queryable audit trail across vendors |
-| 9 | Agents that remember and act safely: Lakebase memory and serverless sandbox | 6 | recall across sessions, run code in sandbox | Managed Postgres plus isolated compute, no infra |
-| 10 | Usability: collaborate on a live session, continue on an Android phone | 3 | join and steer from phone | — |
-| 11 | Recap, how to try it (links, QR to the public repo) | 1 | — | — |
+| 3 | Omnigent as a meta-harness: server, harnesses, providers, policies, UI, plus a full-scope tour (Polly/Debby, scheduled tasks, Slack, sandboxes). *Omnigent on Databricks* is the managed server | 5 | `omni` overview, web UI | Managed server behind your workspace IdP |
+| 4 | Harness engineering: one agent YAML across four harnesses (Claude Code, Codex, Pi, **Antigravity**). Direct vs Native TUI | 7 | switch harness live | One credential (a Databricks profile) for all of them |
+| 5 | **Gemini on Databricks**: Gemini 4 Argon + 3.8 Flash on Unity Gateway; the native Gemini API for `agy`; full Antigravity setup walkthrough | 6 | `omni agy` driven by Databricks-served Gemini | UC permissions, rate limits, and budgets apply to Gemini like any other model |
+| 6 | Smart Routing: Unity Gateway picks the cheapest capable model per subagent | 4 | Smart Routing session; show the per-subagent models | Routing as a governed platform service |
+| 7 | Contextual policies, two layers: Omnigent (budget + CEL residency) and Unity Gateway service policies (sensitive-data guardrail) | 4 | an allowed and a denied action | Governance enforced at the gateway, whatever the harness |
+| 8 | Observability: built-in usage dashboard (Coding Agents + **Skills** tabs), `system.ai_gateway.usage`, unified trace table | 5 | dashboard + one SQL query | One SQL-queryable audit trail across vendors and harnesses |
+| 9 | Agents that remember and act safely: agent memory + Databricks Sandbox (AWS, disclosed) | 5 | recall across sessions; run agent code in Sandbox | Managed Lakebase-backed memory, isolated compute, no infra |
+| 10 | Usability: share a live session (Edit = co-drive), continue on the Android phone | 3 | join and steer from the phone | — |
+| 11 | Recap, cross-cloud honesty note, how to try it (QR code to the public repo) | 1 | — | — |
 
 ## File Structure
 
 ```
 README.md                          # talk abstract, repo map, how to reproduce
-TASKS.md                           # live task board (mirrors this plan's checkboxes at a glance)
-CHECKPOINTS.md                     # dated "working state" snapshots (what works, how to resume)
-LESSONS.md                         # dated lessons learned (feeds the talk's "receipts" segment)
-.gitignore                         # .env.local, .venv, fallbacks/*.mp4 if large, etc.
-.env.example                       # DBX_PROFILE=, GEMINI_ENDPOINT=, LAKEBASE_INSTANCE=, ... (no values)
+tasks.md                           # rolling work list: In Progress / Next, with resume steps
+checkpoint.md                      # single snapshot, overwritten each session: Last session / Current state / Next action
+lessons.md                         # append-only, newest first: ### YYYY-MM-DD — title / What / Why it matters / Tags
+.gitignore                         # existing GitHub template + appended talk entries
+.env.example                       # variable names only
 config/
-  versions.env                     # pinned omnigent / agy / CLI versions and endpoint names
-  omnigent/
-    config.yaml                    # providers (databricks profile via env), defaults
-    server_config.yaml             # routing + server-wide policies
-    agents/
-      talk-coder.yaml              # the single agent spec reused across harnesses
-      talk-coder.antigravity.yaml  # harness override for agy
+  versions.env                     # pinned omnigent / agy / CLI versions and model names
+  omnigent/agents/talk-coder.yaml  # the single agent spec reused across harnesses
+  omnigent/policies.yaml           # built-in + CEL policies attached to talk-coder
 policies/
-  pyproject.toml                   # uv project for custom policies
-  talk_policies/__init__.py
-  talk_policies/residency.py       # data-residency policy: pure core + omnigent adapter
-  tests/test_residency.py
+  pyproject.toml                   # uv project: offline tests for the CEL expressions
+  tests/test_cel_policies.py
 demos/
-  01-harness-switch/run.sh
+  01-harness-switch/run.sh, task.md
   02-antigravity/README.md         # step-by-step agy native-creds walkthrough (on-stage script)
-  03-routing/prompts.md + test_routing.sh
+  03-routing/prompts.md, check_routing.sql
   04-policies/run.sh
-  05-tracing/usage.sql, traces.md
-  06-skills/README.md
-  07-memory/memory_demo.py
-  08-sandbox/sandbox_demo.py
+  05-tracing/smoke.sh, usage.sql, traces.md
+  06-skills/README.md, skills/gcp-databricks-facts/SKILL.md
+  07-memory/pyproject.toml, memory_demo.py, README.md
+  08-sandbox/pyproject.toml, sandbox_demo.py, README.md
   09-collab-mobile/README.md
 scripts/
-  check.sh                         # secret scan + yaml lint + policy tests
-  apply-config.sh                  # snapshot ~/.omnigent then link/copy repo config
-  preflight.sh                     # day-of checks: versions, endpoints, auth, warehouses
+  check.sh                         # secret/hostname scan + yaml lint + policy tests
+  preflight.sh                     # day-of checks: versions, endpoints, auth
 docs/
-  research/facts.md                # every on-stage claim + source URL + verified date
+  research/facts.md                # every on-stage claim + exact quote + URL + verified date
   superpowers/plans/               # this plan
 talk/
-  outline.md                       # final segment plan with timings
-  speaker-notes.md
-  runbook.md                       # exact demo keystrokes, fallbacks, screen hygiene
-  slides/                          # deck source or link (Google Slides via fe-google-tools:google-slides)
+  outline.md, speaker-notes.md, runbook.md
+  slides/                          # deck source or link
   fallbacks/                       # recorded demo clips / screenshots
 ```
 
@@ -136,166 +131,120 @@ talk/
 ### Task 1: Repo scaffold and tracking layer
 
 **Files:**
-- Create: `TASKS.md`, `CHECKPOINTS.md`, `LESSONS.md`, `.gitignore`, `.env.example`, `scripts/check.sh`
-- Modify: `README.md`
+- Create: `tasks.md`, `checkpoint.md`, `lessons.md`, `.env.example`, `scripts/check.sh`
+- Modify: `README.md`, `.gitignore` (append only)
 
 **Interfaces:**
-- Produces: `scripts/check.sh`, which exits non-zero on secret patterns, invalid YAML, or failing policy tests. Every later task runs it before committing. `LESSONS.md` entry format: `## YYYY-MM-DD — <title>` followed by **Context / Lesson / Talk-worthy? (y/n)**.
+- Produces: `scripts/check.sh`, which exits non-zero on secret patterns, workspace hostnames, invalid YAML, or failing policy tests. Tracking formats follow ai-kitchen-dbx (`tasks.md` / `checkpoint.md` / `lessons.md`). Talk-worthy lessons get a `#talk` tag.
 
-- [ ] **Step 1: Reconcile with ai-kitchen-dbx conventions.** Open `/Users/christopher.chalcraft/Projects/Databricks/ai-kitchen-dbx` (the planning session could not read it). Note its task, checkpoint, and lesson file names, formats, and any hooks or skills that write them. If they differ from this task's names, **use ai-kitchen-dbx's names and formats** and update the File Structure section of this plan to match. Record the decision in `LESSONS.md`.
-- [ ] **Step 2: Write `.gitignore`**
+- [ ] **Step 1: Append to `.gitignore`.** Do not overwrite it: the existing file is GitHub's Python template and already covers `.venv/`, `__pycache__/`, and similar. `.isaac/` stays tracked.
 
 ```gitignore
+# talk repo
 .env.local
-.venv/
-__pycache__/
-*.pyc
-.isaac/
-mtime-test-*/
 talk/fallbacks/*.mov
+talk/fallbacks/*.mp4
 ```
 
-- [ ] **Step 3: Write `.env.example`** (names only, no values)
+- [ ] **Step 2: Write `.env.example`** (names only, no values)
 
 ```bash
-DBX_PROFILE=            # GCP workspace profile from ~/.databrickscfg — presenter chooses
-DBX_AWS_PROFILE=        # optional AWS workspace for memory/sandbox if not on GCP (Task 2) — presenter chooses
-GEMINI_ENDPOINT=        # Unity AI Gateway endpoint name for Gemini 4 Argon (Task 3)
-GEMINI_FLASH_ENDPOINT=  # cheaper Gemini endpoint for routing contrast (Task 3)
-LAKEBASE_INSTANCE=      # Lakebase instance for agent memory (Task 11)
-EMBEDDING_ENDPOINT=     # embeddings endpoint for long-term memory (Task 11)
+DBX_PROFILE=            # AWS workspace profile hosting the Omnigent server + Sandbox — presenter chooses
+DBX_GCP_PROFILE=        # optional GCP workspace profile for Gemini/memory demos — presenter chooses
+OMNI_SERVER=            # Omnigent server URL (workspace URL); never commit
+GEMINI_MODEL=           # Gemini 4 Argon model/endpoint name as served by Unity Gateway (Task 3)
+GEMINI_FLASH_MODEL=     # Gemini 3.8 Flash name (Task 3)
 WAREHOUSE_ID=           # SQL warehouse for usage queries (Task 9)
+MEMORY_STORE=           # agent memory store id (Task 11)
 ```
 
-- [ ] **Step 4: Write `scripts/check.sh`**
+- [ ] **Step 3: Write `scripts/check.sh`.** The secret scan excludes `scripts/check.sh` and `docs/superpowers/plans/`, because both contain the literal patterns.
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
 fail=0
-# 1. secret scan over tracked + staged files
-if git ls-files -z --cached --others --exclude-standard \
-   | xargs -0 grep -nIE '(dapi[0-9a-f]{32}|AIza[0-9A-Za-z_-]{35}|sk-[A-Za-z0-9]{20,}|ya29\.[0-9A-Za-z_-]+|"refresh_token")' 2>/dev/null; then
+files() { git ls-files -z --cached --others --exclude-standard -- . ':!scripts/check.sh' ':!docs/superpowers/plans/'; }
+# 1. secret scan over tracked + untracked-not-ignored files
+if files | xargs -0 grep -nIE '(dapi[0-9a-f]{32}|AIza[0-9A-Za-z_-]{35}|sk-[A-Za-z0-9]{20,}|ya29\.[0-9A-Za-z_-]+|"refresh_token")' 2>/dev/null; then
   echo "check: possible secret found (above)"; fail=1
 fi
-# 1b. public repo: no workspace hostnames (docs.databricks.com links are fine)
-if git ls-files -z --cached --others --exclude-standard \
-   | xargs -0 grep -nIE '[a-z0-9-]+\.(cloud|gcp)\.databricks\.com|adb-[0-9]+\.[0-9]+\.azuredatabricks\.net' 2>/dev/null \
-   | grep -v 'docs\.'; then
+# 2. public repo: no workspace hostnames (docs.databricks.com links are fine)
+if files | xargs -0 grep -nIE '[a-z0-9-]+\.(cloud|gcp)\.databricks\.com|adb-[0-9]+\.[0-9]+\.azuredatabricks\.net|databricksapps\.com' 2>/dev/null \
+   | grep -v 'docs\.databricks\.com'; then
   echo "check: workspace hostname found (above) — move it to .env.local"; fail=1
 fi
-# 2. yaml parses
-for f in $(git ls-files --cached --others --exclude-standard '*.yaml' '*.yml'); do
+# 3. yaml parses
+while IFS= read -r -d '' f; do
   uv run --quiet --with pyyaml python -c "import sys,yaml; yaml.safe_load(open(sys.argv[1]))" "$f" \
     || { echo "check: invalid yaml $f"; fail=1; }
-done
-# 3. policy tests (once policies/ exists)
+done < <(git ls-files -z --cached --others --exclude-standard -- '*.yaml' '*.yml')
+# 4. policy tests (once policies/ exists)
 if [ -f policies/pyproject.toml ]; then
   (cd policies && uv run --quiet pytest -q) || fail=1
 fi
 exit $fail
 ```
 
-- [ ] **Step 5: Verify that check.sh catches a planted secret**
+- [ ] **Step 4: Verify that check.sh catches planted problems.** Run `printf 'x=dapi%032d\n' 0 > leak.txt && bash scripts/check.sh; echo "exit=$?"; rm leak.txt`. Expected: `check: possible secret found` and `exit=1`. Repeat with `printf 'h=foo-1.2.%s.databricks.com\n' gcp > leak.txt` and expect the hostname failure. A clean run should give `exit=0`.
+- [ ] **Step 5: Write the tracking files** in ai-kitchen-dbx format (see `/Users/christopher.chalcraft/Projects/Databricks/ai-kitchen-dbx/{tasks,checkpoint,lessons}.md`):
+  - `tasks.md`: `# Tasks` / "Rolling work list. Updated each session." / `## In Progress` / `## Next`, with one `- [ ] **Task N: <name>.**` line per task in this plan.
+  - `checkpoint.md`: `# Checkpoint` / `**Last session:** <date>.` / `**Current state:**` / `**Next action (resume point):**`. Overwrite it at each session end.
+  - `lessons.md`: header + format block, then the entries listed under *Lessons to seed* at the end of this plan.
+- [ ] **Step 6: Update `README.md`** with the talk title, a 3-sentence abstract, the repo map, and a link to this plan.
+- [ ] **Step 7: Commit** (`chore: scaffold talk repo and tracking layer`), after `bash scripts/check.sh` passes.
 
-Run: `printf 'x=dapi%032d\n' 0 > ./leak.txt && bash scripts/check.sh; echo "exit=$?"; rm leak.txt`
-Expected: prints `check: possible secret found` and `exit=1`. Then `bash scripts/check.sh; echo "exit=$?"` gives `exit=0`.
-
-- [ ] **Step 6: Write `TASKS.md`** with one line per task in this plan (`- [ ] Task N: <name>`). Write `CHECKPOINTS.md` with its first entry (`## 2026-11-01 — Plan written; nothing executed yet. Resume at Task 1.`). Write `LESSONS.md` with the first lesson: *"Planning session had no Bash/WebFetch/out-of-repo read permission. Research came from search summaries, hence the Research Status table. Talk-worthy? y (permission modes as a safety feature)."*
-- [ ] **Step 7: Update `README.md`** with the talk title, a 3-sentence abstract (from the Goal and Source Brief), the repo map (File Structure), and a link to this plan.
-- [ ] **Step 8: Commit**
-
-```bash
-bash scripts/check.sh && git add -A && git commit -m "chore: scaffold talk repo and tracking layer
-
-Co-authored-by: Isaac <no-reply@databricks.com>"
-```
-
-### Task 2: Fact verification pass
+### Task 2: Fact sheet completion
 
 **Files:**
-- Create: `docs/research/facts.md`
-- Modify: this plan's Research Status table (flip statuses)
+- Modify: `docs/research/facts.md` (seeded 2026-11-02)
 
-**Interfaces:**
-- Produces: `docs/research/facts.md`, a table with columns `claim | exact quote | URL | verified (YYYY-MM-DD) | slide #`. Later tasks look up config keys and commands here, not from memory.
+- [ ] **Step 1:** For each row of `facts.md`, re-open the URL and replace any paraphrase with the **exact** quote. WebFetch returns summaries, so slide quotes must be checked by eye or with `curl`.
+- [ ] **Step 2:** Fill the items still marked open in `facts.md`: native Gemini route on Unity Gateway, Omnigent CEL policy docs page (404 on 2026-11-02), the `extends`/`executor.harness` schema after upgrading, `databricks-agentbricks` import name, and Sandbox region list.
+- [ ] **Step 3: Verify:** `grep -c "OPEN" docs/research/facts.md` → `0`, or each remaining item has a stated reason and a slide-safe fallback wording.
+- [ ] **Step 4:** Commit (`docs: complete talk fact sheet`).
 
-- [ ] **Step 1:** For each row in Research Status, open the URL and copy the **exact** config keys, commands, and quotes into `facts.md`. Use the `databricks-docs` skill for Databricks pages and WebFetch for omnigent.ai and GitHub.
-- [ ] **Step 2:** Also capture what's missing from the Omnigent docs: the full feature list beyond coding agents (e.g. scheduled tasks, inbox/async calls, browser tools, skills loading, sys_* tools, agent download/registry). These feed the "full scope" slide.
-- [ ] **Step 3:** Confirm on the GCP docs: the Gemini 4 Argon release-note date, the endpoint name pattern, whether Unity AI Gateway exposes the **native Gemini API** route that `agy` needs, and whether **agent memory** and **serverless sandbox** are available on **GCP** (the user's links are AWS docs). If either is unavailable on GCP, record it. Tasks 11/12 then run that feature on the AWS workspace (`DBX_AWS_PROFILE`, approved by the presenter 2026-11-01), and the speaker notes say so openly.
-- [ ] **Step 4:** Flip each row's status in this plan to VERIFIED or WRONG (with the correction).
-- [ ] **Step 5: Verify:** `grep -c "| UNVERIFIED |" docs/superpowers/plans/2026-11-01-omnigent-meta-harness-talk.md` → `0`.
-- [ ] **Step 6:** Commit (`docs: verify talk facts against primary sources`).
-
-### Task 3: Databricks GCP workspace and Unity AI Gateway (Gemini)
+### Task 3: Unity Gateway and Gemini models
 
 **Files:**
 - Create: `config/versions.env`, `demos/05-tracing/smoke.sh`
 
 **Interfaces:**
-- Produces: `GEMINI_ENDPOINT` and `GEMINI_FLASH_ENDPOINT` values (in `.env.local`, and in `config/versions.env` if the names aren't sensitive). Usage tracking and inference tables are enabled on those endpoints.
+- Produces: `GEMINI_MODEL` and `GEMINI_FLASH_MODEL` (generic `system.ai.*` / `databricks-gemini-*` names may also go in `config/versions.env`).
 
-- [ ] **Step 0: BLOCKED until the presenter provides the GCP profile name.** Tasks 1–2 can run before this.
-- [ ] **Step 1:** Load skills `databricks-core` and `databricks-model-serving`. The presenter chooses the GCP profile and sets `DBX_PROFILE` in `.env.local`. Confirm it is GCP: `databricks auth describe --profile "$DBX_PROFILE"` shows a `*.gcp.databricks.com` host.
-- [ ] **Step 2:** Find the Gemini endpoints: `databricks serving-endpoints list --profile "$DBX_PROFILE" -o json | jq -r '.[].name' | grep -i gemini`. Record the names in `.env.local` and `config/versions.env`.
-- [ ] **Step 3:** In the Unity AI Gateway UI or API, enable **usage tracking** and **inference tables** for those endpoints, plus a rate limit, so they can be shown on stage. Screenshot the settings to `talk/fallbacks/gateway-settings.png`.
+- [ ] **Step 0: BLOCKED until the presenter confirms which profile(s) to use** (`DBX_PROFILE`, optional `DBX_GCP_PROFILE`).
+- [ ] **Step 1:** Load skills `databricks-core` and `databricks-model-serving`. Run `databricks auth describe --profile "$DBX_PROFILE"` to confirm the profile (do not print the token).
+- [ ] **Step 2:** Find the Gemini models: `databricks serving-endpoints list --profile "$DBX_PROFILE" -o json | jq -r '.[].name' | grep -i gemini`. If the gateway lists models as `system.ai.*` services, use those names. Record them in `.env.local` and `config/versions.env`.
+- [ ] **Step 3:** Confirm Unity Gateway usage tracking is on (it's on by default since Jul 17 2026). Optionally attach an inference table and a rate limit to show on stage. Screenshot the settings to `talk/fallbacks/gateway-settings.png` and redact the hostname.
 - [ ] **Step 4: Write `demos/05-tracing/smoke.sh`**
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname "$0")/../../.env.local"
-databricks serving-endpoints query "$GEMINI_ENDPOINT" --profile "$DBX_PROFILE" \
+databricks serving-endpoints query "$GEMINI_MODEL" --profile "$DBX_PROFILE" \
   --json '{"messages":[{"role":"user","content":"Reply with exactly: pong"}],"max_tokens":10}' \
   | jq -r '.choices[0].message.content'
 ```
 
-- [ ] **Step 5: Verify:** `bash demos/05-tracing/smoke.sh` → output contains `pong`.
-- [ ] **Step 6:** Add a `LESSONS.md` entry and commit (`feat: gemini via unity ai gateway smoke test`).
+- [ ] **Step 5: Verify:** `bash demos/05-tracing/smoke.sh` → output contains `pong`. Repeat with `GEMINI_FLASH_MODEL`.
+- [ ] **Step 6:** Add a `lessons.md` entry and commit (`feat: gemini via unity gateway smoke test`).
 
-### Task 4: Omnigent install and base config
+### Task 4: Omnigent upgrade and server connection
 
 **Files:**
-- Create: `config/omnigent/config.yaml`, `config/omnigent/server_config.yaml` (routing and policies are added later), `scripts/apply-config.sh`
+- Modify: `config/versions.env`
 
 **Interfaces:**
-- Consumes: `DBX_PROFILE` (Task 3)
-- Produces: provider name **`dbx`** (kind `databricks`), which every agent YAML references. `scripts/apply-config.sh` installs repo config into `~/.omnigent/`.
+- Consumes: `OMNI_SERVER`, `DBX_PROFILE`
+- Produces: `OMNIGENT_VERSION=` pin. Every demo script connects with `--server "$OMNI_SERVER"`.
 
-- [ ] **Step 1:** Install with no brew: `uv tool install "omnigent[databricks,antigravity]"` (or the curl installer in facts.md). Record `omni --version` in `config/versions.env` as `OMNIGENT_VERSION=`.
-- [ ] **Step 2:** Run `omni setup` interactively. Choose **Databricks — workspace** with `$DBX_PROFILE`. Then diff the generated `~/.omnigent/config.yaml` against the facts.md key names.
-- [ ] **Step 3: Write `config/omnigent/config.yaml`** by templating the generated file. Key names must match what `omni setup` produced. Expected shape:
-
-```yaml
-providers:
-  dbx:
-    kind: databricks
-    profile: ${DBX_PROFILE}
-    default: true
-```
-
-If env interpolation isn't supported for `profile`, `apply-config.sh` renders the file with `envsubst`.
-- [ ] **Step 4: Write `scripts/apply-config.sh`**
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")/.."
-source .env.local
-ts=$(date +%Y%m%d-%H%M%S)
-[ -d ~/.omnigent ] && tar czf "$HOME/.omnigent.backup-$ts.tgz" -C "$HOME" .omnigent
-mkdir -p ~/.omnigent
-for f in config.yaml server_config.yaml; do
-  envsubst < "config/omnigent/$f" > "$HOME/.omnigent/$f"
-done
-mkdir -p ~/.omnigent/agents && cp config/omnigent/agents/*.yaml ~/.omnigent/agents/ 2>/dev/null || true
-echo "applied; backup at ~/.omnigent.backup-$ts.tgz"
-```
-
-Before writing to `~/.omnigent`, check `~/.agents/AGENT-ENVIRONMENT.md`. If `~/.omnigent` (or part of it) is a symlink to a canonical location, write there instead.
-- [ ] **Step 5: Verify:** `bash scripts/apply-config.sh && omni diagnose` shows provider `dbx` healthy with no secrets printed. Save the output (redacted) to `talk/fallbacks/omni-diagnose.txt`.
-- [ ] **Step 6:** Commit (`feat: omnigent base config with databricks provider`).
+- [ ] **Step 1:** `omni upgrade` (local is 0.9.0.dev0; target ≥ v0.20.0). Record `omni --version` as `OMNIGENT_VERSION=`. If `omni upgrade` misbehaves, use `uv tool upgrade omnigent`. Never use brew.
+- [ ] **Step 2:** Confirm the server connection: `omni login "$OMNI_SERVER"` if needed, then `omni diagnose --server "$OMNI_SERVER" --json`. Save a redacted copy to `talk/fallbacks/omni-diagnose.txt` (hostname removed).
+- [ ] **Step 3:** Confirm the laptop is registered as a host (`omni host --server "$OMNI_SERVER"`) and check the managed server's preview prerequisites: the Omnigent preview, and the Sandbox preview for Task 12.
+- [ ] **Step 4:** Re-check the agent YAML schema against the upgraded package (`executor.harness` vs `executor.type`/`config`) and update `facts.md`.
+- [ ] **Step 5:** `lessons.md` entry (e.g. "stale 0.9 install had no `omni agy`") and commit (`chore: pin omnigent version`).
 
 ### Task 5: Harness engineering — one agent, four harnesses
 
@@ -303,10 +252,9 @@ Before writing to `~/.omnigent`, check `~/.agents/AGENT-ENVIRONMENT.md`. If `~/.
 - Create: `config/omnigent/agents/talk-coder.yaml`, `demos/01-harness-switch/run.sh`, `demos/01-harness-switch/task.md`
 
 **Interfaces:**
-- Consumes: provider `dbx`
-- Produces: agent `talk-coder`, and harness IDs `claude-code`, `codex`, `pi`, `antigravity` (exact IDs from facts.md).
+- Produces: agent `talk-coder`. Harness IDs come from the upgraded `omni run --help`: `claude-sdk`, `codex`, `pi`, `antigravity` (direct) / `antigravity-native` (`omni agy`).
 
-- [ ] **Step 1: Write `talk-coder.yaml`.** Confirm the field names against facts.md and AGENT_YAML_SPEC.md.
+- [ ] **Step 1: Write `talk-coder.yaml`** using the schema confirmed in Task 4 Step 4:
 
 ```yaml
 name: talk-coder
@@ -314,163 +262,80 @@ prompt: |
   You are a careful coding assistant working in the omnigent-talk repo.
   Keep changes minimal and explain them in one paragraph.
 executor:
-  harness: claude-code
-  model: databricks-claude-sonnet-4-6   # replace with exact id from facts.md
-  auth:
-    type: databricks
-    profile: ${DBX_PROFILE}
+  harness: claude-sdk
+  model: system.ai.claude-sonnet-5-5   # replace with the exact name from Task 3
 ```
 
-- [ ] **Step 2: Write `demos/01-harness-switch/task.md`**, a tiny deterministic task that can be run on stage: *"Add a `--json` flag to `scripts/preflight.sh` that prints results as JSON."* (Pick a task that exists once Task 13 is done, or a toy file under `demos/01-harness-switch/sandbox/`.)
-- [ ] **Step 3: Write `run.sh`** to run the same agent and task across harnesses. Use the documented CLI override flag from facts.md:
+- [ ] **Step 2: Write `task.md`**, a tiny deterministic task on a toy file under `demos/01-harness-switch/sandbox/` (e.g. "add a `--json` flag to `sandbox/greet.py`").
+- [ ] **Step 3: Write `run.sh`**
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-harness=${1:?usage: run.sh <claude-code|codex|pi|antigravity>}
-omni run talk-coder --harness "$harness" --prompt-file "$(dirname "$0")/task.md"
+cd "$(dirname "$0")"
+source ../../.env.local
+harness=${1:?usage: run.sh <claude-sdk|codex|pi|antigravity> [model]}
+omni run ../../config/omnigent/agents/talk-coder.yaml --server "$OMNI_SERVER" \
+  --harness "$harness" ${2:+--model "$2"} -p "$(cat task.md)"
 ```
 
-- [ ] **Step 4: Verify:** run each of the four harnesses. Each completes the task, and the session is visible in the web UI. Record per-harness wall time and model in `CHECKPOINTS.md`.
-- [ ] **Step 5:** Note per-harness differences (skills support, native TUI vs direct, auth quirks) in `LESSONS.md`. This becomes the "harness engineering" slide content.
+- [ ] **Step 4: Verify:** run all four harnesses. Each completes the task, and each session is visible in the web UI. Record per-harness wall time and model in `checkpoint.md`.
+- [ ] **Step 5:** Record per-harness differences (direct vs native TUI, skills support, auth quirks, Antigravity community tier) in `lessons.md` (`#talk`). These feed the harness-engineering slide.
 - [ ] **Step 6:** Commit (`feat: single agent spec across four harnesses`).
 
 ### Task 6: Antigravity with native agy credentials via Databricks Gemini
 
 **Files:**
-- Create: `config/omnigent/agents/talk-coder.antigravity.yaml`, `demos/02-antigravity/README.md`
+- Create: `demos/02-antigravity/README.md`
 
 **Interfaces:**
-- Consumes: `GEMINI_ENDPOINT`, provider `dbx`
-- Produces: a working `antigravity` harness whose model calls go through Unity AI Gateway (visible in Task 9 usage).
+- Consumes: `GEMINI_MODEL`, `DBX_PROFILE`
+- Produces: a working `omni agy` session whose model calls go through Unity Gateway and show up in Task 9 usage.
 
-- [ ] **Step 1:** Install `agy` per facts.md, with no brew (use the official installer or npm). Record the version in `config/versions.env` as `AGY_VERSION=` and confirm it is ≥1.1.7 if Keychain creds are used.
-- [ ] **Step 2:** Configure native agy credentials following #configure-native-agy-credentials exactly. Path A: `omni setup` → Antigravity → *Configure native agy API key / gateway* → Databricks profile, which should register a `databricks-gemini-<profile>` provider with `native_gemini: true`. Path B (fallback): agy's own OAuth login.
-- [ ] **Step 3:** Confirm that the gateway route used is the **native Gemini API**, not OpenAI-compatible. If the Databricks gateway doesn't expose it for Argon, record that in LESSONS and use the closest supported route. Do not fake it on stage.
-- [ ] **Step 4: Write `talk-coder.antigravity.yaml`**
+- [ ] **Step 1:** Install agy: `curl -fsSL https://antigravity.google/cli/install.sh | bash`. Read the script before running it. Require **agy ≥ 1.1.13** and record `AGY_VERSION=` in `config/versions.env`.
+- [ ] **Step 2:** `omni setup` → Antigravity → *Configure native agy API key / gateway* → *Add a credential* → *Databricks profile* (`$DBX_PROFILE`). Confirm that a provider with `native_gemini: true` was written. Show it on stage redacted; never show the file raw.
+- [ ] **Step 3: Go/no-go.** Confirm Unity Gateway serves Gemini through the **native Gemini API** (the route `ug gemini` uses), not only OpenAI-compatible chat. If it doesn't, or if it needs Bearer/token-refresh (unsupported by agy), fall back to agy's own Google OAuth (`~/.gemini/oauth_creds.json` already exists) and say on stage that the gateway route is pending. Do not fake it.
+- [ ] **Step 4:** Run `omni agy --server "$OMNI_SERVER"` with `task.md`, and `bash demos/01-harness-switch/run.sh antigravity "$GEMINI_MODEL"` for the direct mode.
+- [ ] **Step 5: Write `demos/02-antigravity/README.md`**, the on-stage walkthrough: (1) where creds live (Keychain / `~/.gemini/...`, never on screen), (2) the `omni setup` screens, (3) the redacted provider block with `native_gemini: true`, (4) `omni agy` running the task, (5) the matching row in `system.ai_gateway.usage`.
+- [ ] **Step 6: Verify:** within about 15 minutes, a usage row appears with the Gemini `destination_model` and a `session_metadata.coding_agent` value for the run (Task 9 Q2).
+- [ ] **Step 7:** Record `talk/fallbacks/antigravity-setup.mov` (gitignored) and commit (`feat: antigravity harness on databricks gemini`).
 
-```yaml
-name: talk-coder-agy
-extends: talk-coder          # if extends unsupported, duplicate prompt from talk-coder.yaml
-executor:
-  harness: antigravity
-  model: ${GEMINI_ENDPOINT}
-```
-
-- [ ] **Step 5: Write `demos/02-antigravity/README.md`**, the on-stage walkthrough: (1) where creds live (Keychain, `~/.gemini/...`, never shown on screen), (2) the `omni setup` screens, (3) the generated provider block (redacted), (4) running `demos/01-harness-switch/run.sh antigravity`, (5) the matching row in `system.ai_gateway.usage`.
-- [ ] **Step 6: Verify:** `bash demos/01-harness-switch/run.sh antigravity` succeeds. Within about 15 minutes, a usage row for `$GEMINI_ENDPOINT` with an agent/invocation-source column appears (Task 9 query).
-- [ ] **Step 7:** Record the screen flow (`talk/fallbacks/antigravity-setup.mov`, gitignored if large) and commit (`feat: antigravity harness on databricks gemini`).
-
-### Task 7: Smart routing
+### Task 7: Smart Routing
 
 **Files:**
-- Modify: `config/omnigent/server_config.yaml`
-- Create: `demos/03-routing/prompts.md`, `demos/03-routing/test_routing.sh`
+- Create: `demos/03-routing/prompts.md`, `demos/03-routing/check_routing.sql`
 
 **Interfaces:**
-- Consumes: provider `dbx`, both Gemini endpoints, harness IDs from Task 5
-- Produces: `routing`/`llm` config, plus three scripted prompts each with an expected `(harness, model)` pair.
+- Consumes: `OMNI_SERVER`, the Enhanced Unity Gateway preview (account admin), and `EXECUTE` on every candidate `system.ai.*` model.
 
-- [ ] **Step 1:** Add routing config using the exact keys from facts.md. Expected shape (built-in judge on Databricks Gemini Flash):
+- [ ] **Step 1:** Confirm the Enhanced Unity Gateway preview is enabled on the account. If it isn't, ask the presenter: it's an account-admin action, so don't toggle it yourself.
+- [ ] **Step 2: Write `prompts.md`.** Use one prompt that naturally fans out to subagents with mixed difficulty (e.g. "rename X across the repo, then design a migration plan for Y"). List the *set* of models that may be chosen. Live: start a session with **Smart Routing** as the harness in the web UI, or with `omni claude --smart-routing --server "$OMNI_SERVER"`. The agent shows the model it chose for each subagent, with the reason when available.
+- [ ] **Step 3: Write `check_routing.sql`**, which shows that routing happened for a session:
 
-```yaml
-llm:
-  model: ${GEMINI_FLASH_ENDPOINT}
-  profile: ${DBX_PROFILE}
-  fallback_models: [${GEMINI_ENDPOINT}]
+```sql
+SELECT event_time, session_metadata.client_subagent_id, destination_model,
+       session_metadata.smart_router_name, routing_information
+FROM system.ai_gateway.usage
+WHERE session_metadata.client_session_id = :session_id
+ORDER BY event_time;
 ```
 
-If the Databricks gateway offers an external router (`routing: provider: external`), evaluate it as option B and pick one in `LESSONS.md`.
-- [ ] **Step 2: Write `prompts.md`** with three prompts that have an obvious winner each:
-  1. "Rename this variable across the repo" → cheap, fast model.
-  2. "Design a migration plan for this 40-file refactor" → strongest reasoning model.
-  3. "Use Gemini-native tools to …" / multimodal (screenshot-to-code) → Antigravity + Gemini Argon.
-  Write the expected `(harness, model)` next to each.
-- [ ] **Step 3: Write `test_routing.sh`.** It runs each prompt in Auto mode with a dry-run/explain flag if one exists (check facts.md), extracts the chosen harness and model from session info (`omni` CLI or `sys_session_get_info`), and diffs against expected. It exits 1 on any mismatch.
-- [ ] **Step 4: Verify:** `bash demos/03-routing/test_routing.sh` exits 0 on three consecutive runs. Routers are nondeterministic, so if it flaps, tighten the prompts rather than the test.
-- [ ] **Step 5:** Commit (`feat: smart routing config and deterministic demo prompts`).
+- [ ] **Step 4: Verify:** run the prompt three times. Each run has a non-null `smart_router_name`, and every `destination_model` is in the expected set. Don't assert exact picks (it's nondeterministic, with no dry-run). If no subagent is routed, rework the prompt.
+- [ ] **Step 5 (optional):** Show Omnigent's own Auto picker: configure `routing: {provider: external, base_url, router_name, profile}` on the server, if the managed server allows server config. Skip it if not, and note that in `lessons.md`.
+- [ ] **Step 6:** Commit (`feat: smart routing demo`).
 
-### Task 8: Contextual policies (including a custom data-residency policy)
+### Task 8: Contextual policies (Omnigent CEL + Unity Gateway service policy)
 
 **Files:**
-- Create: `policies/pyproject.toml`, `policies/talk_policies/__init__.py`, `policies/talk_policies/residency.py`, `policies/tests/test_residency.py`, `demos/04-policies/run.sh`
-- Modify: `config/omnigent/server_config.yaml`
+- Create: `config/omnigent/policies.yaml`, `policies/pyproject.toml`, `policies/tests/test_cel_policies.py`, `demos/04-policies/run.sh`
+- Modify: `config/omnigent/agents/talk-coder.yaml` (attach policies)
 
 **Interfaces:**
-- Produces: `talk_policies.residency.decide(model: str, cwd: str, sensitive_globs: list[str], allowed_prefixes: list[str]) -> Decision`, where `Decision` is a dataclass `(allow: bool, reason: str)`. Also `talk_policies.residency.data_residency_policy(**factory_params)`, the Omnigent factory adapter. Its exact callable signature is copied from the builtins in the installed `omnigent/policies/builtins/` package.
+- Produces: two CEL expressions in `policies.yaml` that are also loaded by the tests, so the tests and the deployed policy are the same text. The managed server only supports built-in and CEL policies; Python policies are rejected.
 
-- [ ] **Step 1: Write `policies/pyproject.toml`**
-
-```toml
-[project]
-name = "talk-policies"
-version = "0.1.0"
-requires-python = ">=3.11"
-dependencies = []
-
-[dependency-groups]
-dev = ["pytest>=8"]
-
-[tool.pytest.ini_options]
-pythonpath = ["."]
-```
-
-- [ ] **Step 2: Write the failing tests** `policies/tests/test_residency.py`
-
-```python
-from talk_policies.residency import Decision, decide
-
-GLOBS = ["*/customer-data/*", "*/pii/*"]
-PREFIXES = ["databricks-"]
-
-def test_sensitive_path_blocks_non_databricks_model():
-    d = decide("gpt-5.5", "/work/customer-data/etl", GLOBS, PREFIXES)
-    assert d == Decision(False, "model gpt-5.5 not allowed for sensitive path /work/customer-data/etl")
-
-def test_sensitive_path_allows_databricks_hosted_model():
-    assert decide("databricks-gemini-4-argon", "/work/pii/x", GLOBS, PREFIXES).allow
-
-def test_non_sensitive_path_allows_anything():
-    assert decide("gpt-5.5", "/work/omnigent-talk", GLOBS, PREFIXES).allow
-
-def test_empty_model_is_denied_on_sensitive_path():
-    assert not decide("", "/work/pii/x", GLOBS, PREFIXES).allow
-
-def test_trailing_slash_and_case_do_not_bypass():
-    assert not decide("GPT-5.5", "/work/PII/x/", GLOBS, PREFIXES).allow
-```
-
-- [ ] **Step 3: Verify they fail:** `cd policies && uv run pytest -q` → FAIL with `ModuleNotFoundError: talk_policies.residency`.
-- [ ] **Step 4: Write `talk_policies/residency.py`** (pure core)
-
-```python
-from dataclasses import dataclass
-from fnmatch import fnmatch
-
-
-@dataclass(frozen=True)
-class Decision:
-    allow: bool
-    reason: str
-
-
-def decide(model: str, cwd: str, sensitive_globs: list[str], allowed_prefixes: list[str]) -> Decision:
-    path = cwd.lower().rstrip("/") + "/"
-    if not any(fnmatch(path, g.lower()) for g in sensitive_globs):
-        return Decision(True, "non-sensitive path")
-    if model and any(model.lower().startswith(p.lower()) for p in allowed_prefixes):
-        return Decision(True, f"model {model} is governed by Unity AI Gateway")
-    return Decision(False, f"model {model} not allowed for sensitive path {cwd}")
-```
-
-and an empty `talk_policies/__init__.py`.
-- [ ] **Step 5: Verify:** `cd policies && uv run pytest -q` → `5 passed`.
-- [ ] **Step 6: Add the Omnigent adapter.** Read the installed builtin `cost_budget` (`python -c "import omnigent.policies.builtins.cost as m; print(m.__file__)"`) and copy its factory → handler shape exactly. Add `data_residency_policy(sensitive_globs, allowed_prefixes)` to `residency.py`. It returns a handler that pulls the model and cwd off the policy event, calls `decide`, and returns deny/allow in Omnigent's result type. Add one adapter test that constructs a real `PolicyEvent` (as builtin tests do) for the deny case.
-- [ ] **Step 7: Wire it into `server_config.yaml`** alongside the builtins:
+- [ ] **Step 1: Write `config/omnigent/policies.yaml`.** It holds the residency rule as CEL, plus built-in budgets. `PolicyEvent` has no cwd, so residency is keyed on the *paths in tool-call arguments*.
 
 ```yaml
-policy_modules:
-  - talk_policies
 policies:
   session_budget:
     type: function
@@ -478,90 +343,106 @@ policies:
     factory_params: {max_cost_usd: 5.00, ask_thresholds_usd: [2.00]}
   data_residency:
     type: function
-    handler: talk_policies.residency.data_residency_policy
+    handler: omnigent.policies.builtins.cel.cel_policy
     factory_params:
-      sensitive_globs: ["*/customer-data/*", "*/pii/*"]
-      allowed_prefixes: ["databricks-"]
+      expression: >
+        event.type == "tool_call"
+        && string(event.data.arguments).lowerAscii().contains("customer-data/")
+        && !(has(event.context.model) && string(event.context.model).startsWith("system.ai."))
+          ? {"result": "DENY", "reason": "customer-data/ is restricted to Databricks-governed models"}
+          : {"result": "ALLOW"}
+      reason: Data residency
 ```
 
-Make `talk_policies` importable by the Omnigent server: `uv pip install -e policies` into the omni tool env, or follow the policy_modules path documented in facts.md.
-- [ ] **Step 8: Write `demos/04-policies/run.sh`.** It creates `/tmp/talk/customer-data/` and runs `talk-coder` there twice: with a non-Databricks model (expected: denied, with the reason shown) and with `$GEMINI_ENDPOINT` (expected: allowed).
-- [ ] **Step 9: Verify:** `bash scripts/check.sh` passes (it runs the pytest suite). `bash demos/04-policies/run.sh` shows one deny and one allow.
-- [ ] **Step 10:** Commit (`feat: data-residency policy keeping sensitive paths on databricks-governed models`).
+Check that `string(map)` and `lowerAscii()` are supported by the `cel-python` version Omnigent pins. If not, match on specific argument keys (`event.data.arguments.path`, `.command`) and record what worked in `lessons.md`.
+- [ ] **Step 2: Write `policies/pyproject.toml`** (uv project with dev deps `pytest>=8`, `pyyaml`, `omnigent`).
+- [ ] **Step 3: Write the failing tests first.** `policies/tests/test_cel_policies.py` loads `data_residency.factory_params.expression` from `policies.yaml`, builds it with `omnigent.policies.builtins.cel.cel_policy`, and asserts:
+  - a `tool_call` with `arguments={"path": "demo/customer-data/x.csv"}` and `context.model="gpt-5.5"` → DENY;
+  - the same call with `context.model="system.ai.gemini-4-argon"` → ALLOW;
+  - a non-sensitive path with any model → ALLOW;
+  - a missing model on a sensitive path → DENY;
+  - an upper-case `Customer-Data/` path → DENY (case doesn't bypass).
+  Run `cd policies && uv run pytest -q` and confirm they fail before Step 1's expression is finalized.
+- [ ] **Step 4: Verify:** `bash scripts/check.sh` passes; it runs pytest.
+- [ ] **Step 5:** Attach the policies to `talk-coder.yaml`, using the schema confirmed in Task 4, inline or by reference.
+- [ ] **Step 6: Unity Gateway layer.** In Unity Catalog, attach the **Sensitive Data Detection** guardrail service policy (Beta) to the Gemini service. Demo: a prompt containing a fake credit-card number is blocked. Blocked calls return HTTP 200 with the block reason. Screenshot this to `talk/fallbacks/`.
+- [ ] **Step 7: Write `demos/04-policies/run.sh`.** Create `demos/04-policies/customer-data/sample.csv` with fake data, then ask `talk-coder` to summarize it twice: with a non-`system.ai.*` model (expect DENY plus the reason) and with `$GEMINI_MODEL` (expect ALLOW).
+- [ ] **Step 8: Verify:** the run shows one deny and one allow, and the guardrail demo blocks.
+- [ ] **Step 9:** Commit (`feat: CEL data-residency policy and gateway guardrail`).
 
-### Task 9: Tracing and usage via Unity AI Gateway
+### Task 9: Observability via Unity Gateway
 
 **Files:**
 - Create: `demos/05-tracing/usage.sql`, `demos/05-tracing/traces.md`
 
 **Interfaces:**
 - Consumes: Tasks 5–8 traffic, `WAREHOUSE_ID`
-- Produces: three saved queries used on stage (optionally a small AI/BI dashboard).
 
-- [ ] **Step 1:** Load `databricks-unity-catalog` and `databricks-dbsql`. Run `DESCRIBE system.ai_gateway.usage` and write the real column names into facts.md.
-- [ ] **Step 2: Write `usage.sql`** with three queries. Adjust column names to Step 1's output:
+- [ ] **Step 1:** Load `databricks-unity-catalog` and `databricks-dbsql`. Run `DESCRIBE system.ai_gateway.usage` and confirm it matches the columns in Research Status.
+- [ ] **Step 2: Write `usage.sql`**
 
 ```sql
--- Q1: calls per harness/agent and model, last 24h
-SELECT invocation_source, model_name, count(*) AS calls, sum(tokens_total) AS tokens
+-- Q1: calls and tokens per coding agent and model, last 24h
+SELECT session_metadata.coding_agent AS agent, destination_model,
+       count(*) AS calls, sum(total_tokens) AS tokens
 FROM system.ai_gateway.usage
 WHERE event_time > now() - INTERVAL 24 HOURS
 GROUP BY ALL ORDER BY calls DESC;
 
 -- Q2: one coding-agent session end to end
-SELECT event_time, invocation_source, model_name, tokens_total, latency_ms
+SELECT event_time, session_metadata.client_subagent_id, destination_model,
+       total_tokens, latency_ms, invocation_metadata.source
 FROM system.ai_gateway.usage
-WHERE session_id = :session_id ORDER BY event_time;
+WHERE session_metadata.client_session_id = :session_id ORDER BY event_time;
 
 -- Q3: Gemini share of traffic
-SELECT model_name LIKE '%gemini%' AS is_gemini, count(*) FROM system.ai_gateway.usage
+SELECT lower(destination_model) LIKE '%gemini%' AS is_gemini, count(*) AS calls
+FROM system.ai_gateway.usage
 WHERE event_time > now() - INTERVAL 24 HOURS GROUP BY ALL;
 ```
 
-- [ ] **Step 3:** Optionally, build a 3-tile AI/BI dashboard with the `databricks-aibi-dashboards` skill (test every query first, per that skill).
-- [ ] **Step 4: Write `traces.md`.** Explain how to open the MLflow/gateway trace for a session, which shows model calls plus tool and skill spans. Take screenshots into `talk/fallbacks/`.
-- [ ] **Step 5: Verify:** each query returns ≥1 row from today's Task 5–8 runs, including at least one antigravity/Gemini row.
-- [ ] **Step 6:** Commit (`feat: unity ai gateway usage and trace queries`).
+- [ ] **Step 3:** Show the **built-in usage dashboard** instead of building one: the Overview, Coding Agents (harness usage, sessions, subagents) and Skills tabs. Screenshot each to `talk/fallbacks/`.
+- [ ] **Step 4: Write `traces.md`**, covering how to find a session's requests in the **unified trace table** (Beta) and in inference tables, plus coding-agent tracing (`ai-gateway/coding-agent-observability#tracing`).
+- [ ] **Step 5: Verify:** each query returns ≥1 row from today's runs, including at least one Gemini/Antigravity row.
+- [ ] **Step 6:** Commit (`feat: unity gateway usage and trace queries`).
 
 ### Task 10: Skills on Databricks
 
 **Files:**
-- Create: `demos/06-skills/README.md`, plus one small demo skill (location decided in Step 1)
+- Create: `demos/06-skills/README.md`, `demos/06-skills/skills/gcp-databricks-facts/SKILL.md`
 
 **Interfaces:**
-- Produces: one skill loaded by at least two harnesses through Omnigent, and visible as a span or usage record on Databricks.
+- Produces: one skill registered with Unity Gateway Skills, loaded by at least two harnesses, and visible in the dashboard Skills tab and the `aiGatewaySkills` audit logs.
 
-- [ ] **Step 1:** Read `~/.agents/AGENT-ENVIRONMENT.md` to find the canonical skills location. Decide whether the demo skill lives there (shared) or under `demos/06-skills/skills/` (repo-local, loaded by Omnigent). Prefer repo-local so the repo stays reproducible for attendees.
-- [ ] **Step 2:** Write a tiny skill, `gcp-databricks-facts`. It answers "how do I call Gemini on Databricks" using `docs/research/facts.md`.
-- [ ] **Step 3:** Run it from `claude-code` and `antigravity` via Omnigent (the `load_skill` path). Confirm the skill load shows up in the Databricks trace or usage (Task 9 Q2). If skill spans aren't captured on Databricks, say so honestly in LESSONS and show the Omnigent-side record instead.
-- [ ] **Step 4:** Write the README with the demo steps and expected output. Commit (`feat: shared skill demo across harnesses`).
+- [ ] **Step 1:** Write a tiny skill, `gcp-databricks-facts`, that answers "how do I call Gemini on Databricks" from `docs/research/facts.md`. Keep the source repo-local so attendees can reproduce it.
+- [ ] **Step 2:** Register it through the **Unity Gateway Skills REST API** (Beta; `ai-gateway/skill-reference`) or the central coding-agent configuration (`ai-gateway/coding-agent-configure-govern`). Record the exact calls in the README.
+- [ ] **Step 3:** Load it from `claude-sdk` and `antigravity` via Omnigent. Confirm the loads appear in the usage dashboard **Skills** tab and in `system.access.audit` with `service_name = 'aiGatewaySkills'`.
+- [ ] **Step 4:** If a harness can't load gateway skills, show Omnigent's `load_skill` path instead and record that honestly in `lessons.md`.
+- [ ] **Step 5:** Commit (`feat: databricks-governed skill across harnesses`).
 
-### Task 11: Agent memory on Lakebase
+### Task 11: Agent memory
 
 **Files:**
 - Create: `demos/07-memory/pyproject.toml`, `demos/07-memory/memory_demo.py`, `demos/07-memory/README.md`
 
 **Interfaces:**
-- Consumes: `LAKEBASE_INSTANCE`, `EMBEDDING_ENDPOINT`, `GEMINI_ENDPOINT`, `DBX_PROFILE`
+- Consumes: `MEMORY_STORE`, `DBX_GCP_PROFILE` (preferred, to show it on GCP) or `DBX_PROFILE`
 - Produces: `memory_demo.py remember "<fact>" --user <id>` and `memory_demo.py recall "<question>" --user <id>`, run in separate processes to prove persistence.
 
-- [ ] **Step 1:** Load the `databricks-lakebase` and `databricks-agent-bricks` skills. Using Task 2's GCP availability finding, create or choose a Lakebase instance (the presenter approves cost) and set `LAKEBASE_INSTANCE`.
-- [ ] **Step 2:** Confirm the API names on the stateful-agents page. The expected shape is `databricks_langchain.CheckpointSaver(instance_name=...)` for short-term memory and `databricks_langchain.DatabricksStore(instance_name=..., embedding_endpoint=..., embedding_dims=...)` for long-term memory. Write the confirmed signatures into facts.md.
-- [ ] **Step 3: Write `pyproject.toml`** with dependencies `databricks-langchain[memory]`, `langgraph`, `databricks-sdk`.
-- [ ] **Step 4: Write `memory_demo.py`.** Long-term memory only, kept small enough for a slide:
+- [ ] **Step 1:** Load `databricks-agent-bricks`. Confirm the memory Beta is enabled on the chosen workspace. Note that you pay for the underlying Lakebase.
+- [ ] **Step 2: Write `pyproject.toml`** with dependencies `databricks-agentbricks>=0.6.0`, `databricks-sdk`. Confirm the import name (docs: `databricks_agentkit`) after install.
+- [ ] **Step 3: Write `memory_demo.py`**
 
 ```python
 import argparse, hashlib, os
-from databricks_langchain import DatabricksStore
+from databricks.sdk import WorkspaceClient
+from databricks_agentkit import AgentKitClient
 
-def store() -> DatabricksStore:
-    s = DatabricksStore(
-        instance_name=os.environ["LAKEBASE_INSTANCE"],
-        embedding_endpoint=os.environ["EMBEDDING_ENDPOINT"],
-        embedding_dims=1024,  # match the embedding endpoint; confirm in facts.md
-    )
-    s.setup()
-    return s
+
+def store():
+    client = AgentKitClient(WorkspaceClient(profile=os.environ["MEMORY_PROFILE"]))
+    return client.memory_stores.get(os.environ["MEMORY_STORE"])  # confirm get vs create in facts.md
+
 
 def main() -> None:
     p = argparse.ArgumentParser()
@@ -569,51 +450,48 @@ def main() -> None:
     p.add_argument("text")
     p.add_argument("--user", required=True)
     a = p.parse_args()
-    ns = ("users", a.user, "memories")
     s = store()
     if a.cmd == "remember":
-        s.put(ns, hashlib.sha256(a.text.encode()).hexdigest()[:16], {"text": a.text})
+        path = f"/facts/{hashlib.sha256(a.text.encode()).hexdigest()[:16]}.md"
+        s.put(actor_id=a.user, path=path, content=a.text, description=a.text[:80])
         print("stored")
     else:
-        for item in s.search(ns, query=a.text, limit=3):
-            print(item.value["text"])
+        for item in s.search(actor_id=a.user, query=a.text, limit=3):
+            print(item.content)  # confirm field name in facts.md
+
 
 if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 5: Verify:** `uv run memory_demo.py remember "My talk is at the Google dev conference and I prefer Gemini" --user chris`, then a **new process**: `uv run memory_demo.py recall "which model do I prefer?" --user chris` prints the stored fact. Running `recall` with `--user someone-else` prints nothing (scoping).
-- [ ] **Step 6:** In the README, show how an Omnigent agent uses this as an MCP tool or skill, so memory follows the user across harnesses. If wiring it as a tool is out of time-scope, show it as a separate demo and note that in LESSONS.
-- [ ] **Step 7:** Commit (`feat: lakebase-backed agent memory demo`).
+- [ ] **Step 4: Verify:** `uv run memory_demo.py remember "My talk is at a Google dev conference and I prefer Gemini" --user chris`. Then, in a **new process**, `uv run memory_demo.py recall "which model do I prefer?" --user chris` prints the fact, and `--user someone-else` prints nothing. On stage, say that `actor_id` scopes recall but is not access control.
+- [ ] **Step 5:** In the README, show how an Omnigent agent uses this (as an MCP tool or skill) so memory follows the user across harnesses. If that's out of time-scope, run it as a standalone demo and note that in `lessons.md`.
+- [ ] **Step 6:** Commit (`feat: agent memory demo`).
 
-### Task 12: Serverless sandbox
+### Task 12: Databricks Sandbox
 
 **Files:**
-- Create: `demos/08-sandbox/sandbox_demo.py`, `demos/08-sandbox/README.md`
+- Create: `demos/08-sandbox/pyproject.toml`, `demos/08-sandbox/sandbox_demo.py`, `demos/08-sandbox/README.md`
 
 **Interfaces:**
-- Consumes: `DBX_PROFILE`
-- Produces: `sandbox_demo.py "<python code>"`, which runs model-generated code in the Databricks serverless sandbox and prints stdout. Plus one "agent writes code → sandbox runs it" flow.
+- Consumes: `DBX_PROFILE` (AWS; Sandbox is AWS-only, so disclose this)
+- Produces: `sandbox_demo.py "<shell command>"`, which runs in a Databricks Sandbox and prints the exit code and stdout. Also an Omnigent session hosted in a Sandbox.
 
-- [ ] **Step 1:** From the sandbox doc (Task 2), record in facts.md: the API or SDK entry point, the GCP availability and preview status, the network and filesystem isolation guarantees, and the time and size limits.
-- [ ] **Step 2:** Implement `sandbox_demo.py` using the documented SDK call. It takes code from argv, creates or reuses a sandbox, executes the code, prints stdout and exit status, and tears down. Keep it under 40 lines.
-- [ ] **Step 3: Verify the happy path:** `uv run sandbox_demo.py "print(sum(range(10)))"` → `45`.
-- [ ] **Step 4: Verify isolation** (the on-stage "why it matters" beat): `uv run sandbox_demo.py "import os; print(os.listdir(os.path.expanduser('~')))"` shows the sandbox home, not the laptop's. A network call to a blocked host fails, if egress is restricted per the docs.
-- [ ] **Step 5:** Connect it to an agent. Have `talk-coder-agy` write a data-analysis snippet, then execute it via `sandbox_demo.py`, either as a tool or by hand for the demo. Document this in the README.
-- [ ] **Step 6:** Commit (`feat: serverless sandbox demo for agent-generated code`).
+- [ ] **Step 1:** Enable the **Databricks Sandbox** preview on the workspace (presenter action) and confirm the region is supported.
+- [ ] **Step 2: Implement `sandbox_demo.py`** (under 40 lines) with `databricks-sdk`: `w.sandbox.create_sandbox(sandbox_id=...)`, then `w.sandbox.execute_command_sync(..., args=["-c", cmd], execution_timeout=Duration(seconds=60))` (no shell is implied, so run `/bin/bash -c`), print `exit_code` and `stdout`, then `w.sandbox.delete_sandbox("sandboxes/<id>")`. Copy the exact signatures from the quickstart into `facts.md`.
+- [ ] **Step 3: Verify the happy path:** `uv run sandbox_demo.py "python3 -c 'print(sum(range(10)))'"` → `45`.
+- [ ] **Step 4: Verify isolation:** `uv run sandbox_demo.py "whoami; ls ~"` shows `sandbox-agent` and the sandbox home, not the laptop's. Note that **egress is unrestricted**, so don't claim network isolation; claim ingress closed and a separate filesystem and identity instead.
+- [ ] **Step 5: Agent flow.** Start an Omnigent session hosted in a Databricks Sandbox from the web UI (the managed server supports Sandbox hosts; model access is forced through Unity Gateway). Have it write and run a data-analysis snippet. Document the steps in the README. Mention `omni sandbox create/connect` (modal/daytona/islo) as the OSS equivalent.
+- [ ] **Step 6:** Commit (`feat: databricks sandbox demo for agent-generated code`).
 
-### Task 13: Collaboration, mobile, and preflight
+### Task 13: Collaboration, mobile, a non-coding feature, and preflight
 
 **Files:**
 - Create: `demos/09-collab-mobile/README.md`, `scripts/preflight.sh`
 
-**Interfaces:**
-- Consumes: everything above
-- Produces: `scripts/preflight.sh`, which exits 0 only when every demo's dependencies are healthy.
-
-- [ ] **Step 1:** Collaboration demo. Start a `talk-coder` session, share its URL, have a second account or browser join, leave an inline comment, and steer the agent. Write the exact steps in the README.
-- [ ] **Step 2:** Mobile demo. Install the Omnigent Android app (Google Play, a nice touch for this audience), sign in, open the same live session, and send a steering message from the phone. Plan screen mirroring for the phone (e.g. `scrcpy` via nix or npm, not brew).
-- [ ] **Step 3:** Briefly show other non-coding Omnigent features from Task 2 Step 2, e.g. a scheduled task that runs `usage.sql` Q1 every morning and posts a summary, or the async inbox. Pick one and document it.
+- [ ] **Step 1: Collaboration.** Start a `talk-coder` session, click **Share** → *Edit*, and have a second account co-drive. Their messages appear labeled with their identity. Also show `omni attach <session_id>` from a second terminal. Inline comments are not a documented feature, so don't demo them.
+- [ ] **Step 2: Mobile.** Open the same live session in the Omnigent Android app (`ai.omnigent.android`, Google Play) and send a steering message. Mirror the phone with `scrcpy` via nix (not brew).
+- [ ] **Step 3: One non-coding feature.** Pick a scheduled task that runs `usage.sql` Q1 every morning and posts a summary, or the Slack integration (`omni integration slack`). Document it in the README.
 - [ ] **Step 4: Write `scripts/preflight.sh`**
 
 ```bash
@@ -622,18 +500,18 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 source .env.local; source config/versions.env
 ok=0; check() { if eval "$2" >/dev/null 2>&1; then echo "PASS $1"; else echo "FAIL $1"; ok=1; fi; }
-check "omnigent version"   '[ "$(omni --version | grep -oE "[0-9.]+" | head -1)" = "$OMNIGENT_VERSION" ]'
-check "omni diagnose"      'omni diagnose'
-check "databricks auth"    'databricks current-user me --profile "$DBX_PROFILE"'
-check "gemini endpoint"    'bash demos/05-tracing/smoke.sh | grep -q pong'
-check "routing"            'bash demos/03-routing/test_routing.sh'
-check "policies"           'bash scripts/check.sh'
-check "memory"             '(cd demos/07-memory && uv run memory_demo.py recall "model" --user chris | grep -qi gemini)'
-check "sandbox"            '(cd demos/08-sandbox && uv run sandbox_demo.py "print(45)" | grep -q 45)'
+check "omnigent version" '[ "$(omni --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1)" = "$OMNIGENT_VERSION" ]'
+check "agy version"      '[ "$(agy --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1)" = "$AGY_VERSION" ]'
+check "omni diagnose"    'omni diagnose --server "$OMNI_SERVER"'
+check "databricks auth"  'databricks current-user me --profile "$DBX_PROFILE"'
+check "gemini endpoint"  'bash demos/05-tracing/smoke.sh | grep -q pong'
+check "policies"         'bash scripts/check.sh'
+check "memory"           '(cd demos/07-memory && uv run memory_demo.py recall "model" --user chris | grep -qi gemini)'
+check "sandbox"          '(cd demos/08-sandbox && uv run sandbox_demo.py "echo 45" | grep -q 45)'
 exit $ok
 ```
 
-- [ ] **Step 5: Verify:** `bash scripts/preflight.sh` → all PASS. Then break one thing (e.g. a bad `GEMINI_ENDPOINT`) and confirm it prints `FAIL gemini endpoint` and exits 1.
+- [ ] **Step 5: Verify:** `bash scripts/preflight.sh` → all PASS. Then set a bad `GEMINI_MODEL` and confirm `FAIL gemini endpoint` with exit 1.
 - [ ] **Step 6:** Commit (`feat: collaboration/mobile demo and day-of preflight`).
 
 ### Task 14: Talk content, runbook, and dry run
@@ -641,25 +519,40 @@ exit $ok
 **Files:**
 - Create: `talk/outline.md`, `talk/speaker-notes.md`, `talk/runbook.md`, `talk/slides/` (or a link in README)
 
-- [ ] **Step 1:** Confirm the slot length and audience level with the presenter, then rebalance the Talk Narrative timings into `talk/outline.md`.
-- [ ] **Step 2:** Write `speaker-notes.md` per segment: the key line, the demo command, the Databricks "why it matters" beat (governance, one audit trail, managed Postgres memory, isolated compute, runs on GCP), and the source URL from facts.md.
-- [ ] **Step 3:** Build the slides with the `fe-google-tools:google-slides` or `databricks-slides:slide-deck` skill. Include a "receipts" slide built from `LESSONS.md` (talk-worthy = y) and git history: which harness or model wrote which part of this repo.
-- [ ] **Step 4: Write `runbook.md`.** Per demo: the pre-opened terminal or tab, the exact keystrokes, the expected output, the fallback clip, and a "switch to fallback if no output in N seconds" rule. Screen hygiene: hide `~/.databrickscfg`, clear shell history, use a demo-only browser profile, turn on notifications DND, and make the workspace URL safe to show.
+- [ ] **Step 1:** Confirm the audience level with the presenter, then rebalance the Talk Narrative timings into `talk/outline.md`.
+- [ ] **Step 2:** Write `speaker-notes.md` per segment: the key line, the demo command, the Databricks "why it matters" beat, the source URL from `facts.md`, and a **Beta / community-supported** label where it applies.
+- [ ] **Step 3:** Build slides with `databricks-slides:slide-deck` or `fe-google-tools:google-slides`. Include a "receipts" slide from `lessons.md` (`#talk`) and git history (which harness or model wrote which part), plus the cross-cloud honesty slide.
+- [ ] **Step 4: Write `runbook.md`.** Per demo: the pre-opened terminal or tab, exact keystrokes, expected output, the fallback clip, and a "switch to fallback after N seconds" rule. Screen hygiene: hide `~/.databrickscfg` and `~/.omnigent`, clear shell history, use a demo-only browser profile, turn on DND, and keep the workspace URL off screen (it's in `.env.local`).
 - [ ] **Step 5:** Record a fallback for every demo into `talk/fallbacks/`.
-- [ ] **Step 6: Full dry run** with a timer. Run preflight, then the whole talk. Log overruns and failures in `LESSONS.md` and fix them. Repeat until it runs clean twice.
-- [ ] **Step 7:** Final `CHECKPOINTS.md` entry and commit (`docs: talk outline, notes, runbook`).
+- [ ] **Step 6: Full dry run** with a timer: preflight, then the whole talk. Log overruns and failures in `lessons.md` and fix them. Repeat until it runs clean twice.
+- [ ] **Step 7:** Overwrite `checkpoint.md` and commit (`docs: talk outline, notes, runbook`).
 
 ---
 
-## Decisions (presenter, 2026-11-01)
+## Decisions (presenter)
 
-1. **GCP profile:** to be provided later. Task 3 onward is blocked until then. Tasks 1–2 can proceed.
-2. **Slot:** 60 min. The narrative is rebalanced to 45 min of content + 15 min Q&A.
-3. **AWS workspace:** OK for agent memory / serverless sandbox if they're not on GCP. Disclose this on stage.
-4. **Repo:** public at talk time. See the public-repo constraint in Global Constraints.
-5. **Android:** the presenter has a device and already uses the app. The mobile demo stays in.
+2026-11-01:
+1. **Profiles:** to be provided later. Task 3 onward is blocked until then. Tasks 1–2 can proceed.
+2. **Slot:** 60 min (45 content + 15 Q&A).
+3. **AWS workspace:** OK for agent memory / Sandbox if they're unavailable on GCP. Disclose this on stage.
+4. **Repo:** public at talk time.
+5. **Android:** the presenter has a device and uses the app. The mobile demo stays in.
+
+2026-11-02:
+6. **Omnigent server:** use the presenter's existing Databricks-hosted server (AWS workspace) rather than standing up a GCP one. Consequences: CEL/built-in policies only, Sandbox available, cross-cloud honesty slide.
+7. **Tracking:** follow ai-kitchen-dbx conventions (`tasks.md` / `checkpoint.md` / `lessons.md`).
+8. **Plan lives on `main`** (merged from `worktree-87fc0046`).
+
+## Lessons to seed (`lessons.md`, Task 1 Step 5)
+
+- **2026-11-01 — Planning without tools produces a plausible but wrong plan.** *What:* the first planning session had no Bash/WebFetch, so 12/12 facts were unverified, and on 2026-11-02 most needed correction (product name, smart routing layer, memory API, sandbox cloud, policy support). *Why it matters:* verify against primary docs before building. *Tags:* #research #talk
+- **2026-11-02 — Managed Omnigent rejects Python policies.** *What:* Databricks-hosted Omnigent supports built-in and CEL policies only, and `PolicyEvent` has no cwd. *Why it matters:* residency is expressed in CEL over tool-call arguments and tested offline with the real factory. *Tags:* #omnigent #policies #talk
+- **2026-11-02 — Project `.omnigent/config.yaml` replaces non-harness keys wholesale.** *What:* only `harness:` deep-merges, so a repo `providers:` block would hide the user's providers. *Why it matters:* demos use `--server`, and `~/.omnigent` is never touched. *Tags:* #omnigent #config
+- **2026-11-02 — A research subagent was blocked by auto mode.** *What:* the Databricks-docs research subagent was refused, so the docs were fetched inline instead. *Why it matters:* permission modes are a visible safety feature, and plans should not depend on a single delegation path. *Tags:* #permissions #talk
 
 ## Still Open
 
 - Audience mix (app devs vs ML/data folks). This affects how deep segments 8–9 go. Confirm in Task 14.
 - A second account or person for the collaboration demo (Task 13 Step 1).
+- Whether a GCP workspace (`DBX_GCP_PROFILE`) is available for the Gemini/memory demos, or everything runs on the AWS workspace.
+- Whether the Enhanced Unity Gateway preview (Smart Routing) is enabled on the account (Task 7 Step 1).
