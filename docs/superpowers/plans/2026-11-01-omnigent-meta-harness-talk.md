@@ -121,6 +121,7 @@ docs/
   research/facts.md                # every on-stage claim + exact quote + URL + verified date
   superpowers/plans/               # this plan
 talk/
+  prep-reference.md               # presenter reference: model choices (3.8 Flash live, Argon mentioned), framing rules
   outline.md, speaker-notes.md, runbook.md
   slides/                          # deck source or link
   fallbacks/                       # recorded demo clips / screenshots
@@ -365,7 +366,7 @@ Check that `string(map)` and `lowerAscii()` are supported by the `cel-python` ve
 - [ ] **Step 2: Write `policies/pyproject.toml`** (uv project with dev deps `pytest>=8`, `pyyaml`, `omnigent`).
 - [ ] **Step 3: Write the failing tests first.** `policies/tests/test_cel_policies.py` loads `data_residency.factory_params.expression` from `policies.yaml`, builds it with `omnigent.policies.builtins.cel.cel_policy`, and asserts:
   - a `tool_call` with `arguments={"path": "demo/customer-data/x.csv"}` and `context.model="gpt-5.5"` → DENY;
-  - the same call with `context.model="system.ai.gemini-4-argon"` → ALLOW;
+  - the same call with `context.model="system.ai.gemini-3-8-flash"` → ALLOW;
   - a non-sensitive path with any model → ALLOW;
   - a missing model on a sensitive path → DENY;
   - an upper-case `Customer-Data/` path → DENY (case doesn't bypass).
@@ -527,7 +528,7 @@ exit $ok
 - Create: `talk/outline.md`, `talk/speaker-notes.md`, `talk/runbook.md`, `talk/slides/` (or a link in README)
 
 - [ ] **Step 1:** Confirm the audience level with the presenter, then rebalance the Talk Narrative timings into `talk/outline.md`.
-- [ ] **Step 2:** Write `speaker-notes.md` per segment: the key line, the demo command, the Databricks "why it matters" beat, the source URL from `facts.md`, and a **Beta / community-supported** label where it applies.
+- [ ] **Step 2:** Read `talk/prep-reference.md` first; its say / don't-say rules are binding. Write `speaker-notes.md` per segment: the key line, the demo command, the Databricks "why it matters" beat, the source URL from `facts.md`, and a **Beta / community-supported** label where it applies.
 - [ ] **Step 3:** Build slides with `databricks-slides:slide-deck` or `fe-google-tools:google-slides`. Include a "receipts" slide from `lessons.md` (`#talk`) and git history (which harness or model wrote which part), plus the cross-cloud honesty slide.
 - [ ] **Step 4: Write `runbook.md`.** Per demo: the pre-opened terminal or tab, exact keystrokes, expected output, the fallback clip, and a "switch to fallback after N seconds" rule. Screen hygiene: hide `~/.databrickscfg` and `~/.omnigent`, clear shell history, use a demo-only browser profile, turn on DND, and keep the workspace URL off screen (it's in `.env.local`).
 - [ ] **Step 5:** Record a fallback for every demo into `talk/fallbacks/`.
@@ -558,7 +559,7 @@ exit $ok
 2026-11-02 (night):
 11. **FEVM is the single demo workspace, driven by `omni-fevm`.** Logfood couldn't show gateway traces (no BROWSE on `system`, no `unity_gateway_otel_spans`). On FEVM (`fevm-cjc`) the presenter is a workspace admin and *can* read `system.ai_gateway.usage`. Details are in `docs/omni-fevm.md`.
     - **Wrapper:** `omni-fevm` is a home-manager fish function next to `omni-dev` / `omni-gtm`. It's **plain `omni`, not `isaac omni`**, with `OMNIGENT_CONFIG_HOME` = `OMNIGENT_DATA_DIR` = `~/.omnigent-fevm`, `OMNIGENT_SERVER` = FEVM's `/api/2.0/omnigent` mount, and `DATABRICKS_CONFIG_PROFILE=fevm-cjc`. Isaac would pre-configure harnesses against the ai-devtools gateway, so usage would land in the wrong workspace. Demo scripts must export the same two `OMNIGENT_*` vars (now in `.env.example`) so they never touch `~/.omnigent`.
-    - **Gemini:** every live demo uses `system.ai.gemini-3-8-flash`. Argon gets a GCP-only release-note slide. This supersedes the "find a workspace with Argon" option in 10.
+    - **Gemini:** every live demo uses `system.ai.gemini-3-8-flash`. Argon gets a GCP-only release-note slide (wording in `talk/prep-reference.md`). This supersedes the "find a workspace with Argon" option in 10.
     - **Blocker:** FEVM's `/api/2.0/omnigent/v1/me` returned **404** (2026-11-02), so the *Omnigent* workspace preview must be enabled (FEVM Settings → Previews), along with the *Databricks Sandbox* preview for Task 12. Then run `omni-fevm setup`, `omni-fevm login <ws>`, and `omni-fevm host`.
     - **Harness traffic matrix (to fill in after setup):** org-managed Claude Code settings pin `ANTHROPIC_BASE_URL` / `apiKeyHelper` to the ai-devtools gateway, and `~/.codex/config.toml` does the same for Codex. So the native Claude/Codex TUIs probably won't show up in FEVM usage. pi and agy (Omnigent provider) and direct `claude-sdk` should. Verify with the query in `docs/omni-fevm.md` and record the results here.
 
