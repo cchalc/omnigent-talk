@@ -11,7 +11,7 @@ Verified 2026-11-02 unless noted. `DBX` = `https://docs.databricks.com`.
 | Gemini 4 Argon on Unity Gateway (Oct 13 2026) | "Google Gemini 4 Argon is now available on Unity Gateway. You can access this model using Foundation Model APIs." | DBX/gcp/en/release-notes/unity-gateway/#google-gemini-4-argon-is-now-available-on-unity-gateway | verified |
 | Gemini 3.8 Flash Databricks-hosted (Sep 2 2026) | "Model Serving now supports Google Gemini 3.8 Flash as a Databricks-hosted model." | DBX/gcp/en/release-notes/unity-gateway/ | verified |
 | Gemini 3.7 Flash on Unity Gateway (Aug 13 2026) | "…for fast, cost-efficient everyday tasks." | DBX/gcp/en/release-notes/unity-gateway/ | verified |
-| Gemini endpoint name | Not given in release notes | — | OPEN (discover in workspace, Task 3) |
+| Gemini model names | UC model services `system.ai.gemini-3-1-flash-lite`, `system.ai.gemini-3-5-flash`, `system.ai.gemini-3-7-flash`, `system.ai.gemini-3-8-flash` on fevm-cjc. Argon not present there | probe 2026-11-02 | verified for fevm-cjc; Argon name OPEN |
 | Smart Routing (Beta) | "automatically picks the right model and agent harness for each task, based on complexity, permissions, and budget"; "works with Claude Code and Codex when you run them through the Unity Gateway CLI or Omnigent" | DBX/gcp/en/ai-gateway/coding-agent-model-selection | verified |
 | Smart Routing details | Lowest-cost capable `system.ai.*` model. Subagents routed independently. Needs the Enhanced Unity Gateway account preview and `EXECUTE` on candidates. Omnigent ≥0.8: UI "Smart Routing" harness, `omni claude --smart-routing --server <ws>`. `--model` disables it *(paraphrase)* | same | verified |
 | Usage table coding-agent metadata (Sep 27 2026) | "The `system.ai_gateway.usage` system table now includes coding-agent session metadata and invocation source." | DBX/gcp/en/ai-gateway/usage-tracking | verified |
@@ -23,7 +23,8 @@ Verified 2026-11-02 unless noted. `DBX` = `https://docs.databricks.com`.
 | Central coding-agent config (Sep 22 2026) | "Organizations can now centrally configure coding agents: models, MCP servers, skills, a default harness" | DBX/gcp/en/ai-gateway/coding-agent-configure-govern | verified |
 | `ug` CLI (Sep 22 2026) | "Use the Unity Gateway CLI (`ug`) to connect Claude Code, Codex, Pi, and more to Unity Gateway with one command." | DBX/gcp/en/ai-gateway/coding-agent-quickstart | verified |
 | Gemini CLI supported | `ug gemini`. Antigravity not listed | DBX/gcp/en/ai-gateway/coding-agent-supported-agents | verified |
-| Native Gemini API route on Unity Gateway | Not stated in docs | — | OPEN (Task 6 go/no-go) |
+| Native Gemini API route on Unity Gateway | `POST <ws>/ai-gateway/gemini/v1beta/models/system.ai.gemini-3-8-flash:generateContent` (Bearer) returns a Gemini-native response incl. `thoughtSignature`. Omnigent's agy adapter uses this route | probe on fevm-cjc workspace, 2026-11-02; omnigent `harnesses/antigravity_native/gateway.py` | verified |
+| Legacy Gemini endpoints retired | `databricks-gemini-3-8-flash` → 403 "is no longer available. Use Unity Catalog model services." Use `system.ai.gemini-*` | probe on fevm-cjc, 2026-11-02 | verified |
 | Unified trace table (Beta, Aug 21 2026) | "It captures every request and response across your Unity Gateway services into one Unity Catalog table" | DBX/gcp/en/ai-gateway/unified-trace-table | verified |
 | Coding-agent tracing (Sep 22 2026) | "Unity Gateway now adds coding-agent activity to unified tracing through the Unity Gateway CLI" | DBX/gcp/en/ai-gateway/coding-agent-observability#tracing | verified |
 | Inference tables | "Attach inference tables to log full request and response payloads to a governed Delta table." | DBX/gcp/en/ai-gateway/model-provider-services | verified |

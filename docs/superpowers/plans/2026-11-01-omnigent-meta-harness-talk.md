@@ -546,6 +546,8 @@ exit $ok
 2026-11-02 (later):
 9. **Upgraded:** omnigent CLI → `0.22.0.dev0` (git `08b7d804`, tracks `omnigent-ai/omnigent` main; extras `antigravity, databricks`). The remote server reports `0.21.0.dev0`. `omni agy` is available. agy `1.4.12` is installed at `~/.local/bin/agy` (official installer, SHA-512 verified). Its `agy install` shell-config step was **skipped**, because the rc files are home-manager symlinks and `~/.local/bin` is already on PATH. Task 4 Step 1 and Task 6 Step 1 are done; pin these in `config/versions.env` during Task 1.
 
+10. **Antigravity profile:** `fevm-cjc` (AWS FEVM workspace) is the Databricks profile for `omni agy`. Probed 2026-11-02: the native Gemini route `POST <ws>/ai-gateway/gemini/v1beta/models/system.ai.gemini-3-8-flash:generateContent` returns 200 with `thoughtSignature`, so the **Task 6 go/no-go passes**. Served Gemini models: `system.ai.gemini-3-1-flash-lite`, `-3-5-flash`, `-3-7-flash`, `-3-8-flash`. **No Gemini 4 Argon** on this workspace; find a workspace that has it, or present Argon from the release note only. Legacy `databricks-gemini-*` endpoints return 403 *"no longer available. Use Unity Catalog model services."* All Gemini names in this plan should be `system.ai.gemini-*`, and Task 3's `smoke.sh` must use the native route (or `system.ai.*` names), not `serving-endpoints query databricks-gemini-*`.
+
 ## Lessons to seed (`lessons.md`, Task 1 Step 5)
 
 - **2026-11-01 — Planning without tools produces a plausible but wrong plan.** *What:* the first planning session had no Bash/WebFetch, so 12/12 facts were unverified, and on 2026-11-02 most needed correction (product name, smart routing layer, memory API, sandbox cloud, policy support). *Why it matters:* verify against primary docs before building. *Tags:* #research #talk
@@ -553,6 +555,7 @@ exit $ok
 - **2026-11-02 — Project `.omnigent/config.yaml` replaces non-harness keys wholesale.** *What:* only `harness:` deep-merges, so a repo `providers:` block would hide the user's providers. *Why it matters:* demos use `--server`, and `~/.omnigent` is never touched. *Tags:* #omnigent #config
 - **2026-11-02 — `omni upgrade --dry-run` upgraded for real.** *What:* on a git-tracking install, `--dry-run` printed the resolution and then installed it. *Why it matters:* use `--check` to look without changing anything. *Tags:* #omnigent #talk
 - **2026-11-02 — agy's installer edits shell rc files.** *What:* the final `agy install` step configures the shell, but on a nix/home-manager machine the rc files are read-only store symlinks. *Why it matters:* strip that step and rely on `~/.local/bin` already being on PATH. *Tags:* #nix #antigravity
+- **2026-11-02 — zsh `$var:g` is a modifier.** *What:* `"$HOST/.../$m:generateContent"` was mangled into `.../nerateContent` because zsh treats `:g` as a history modifier. *Why it matters:* always brace (`${m}:generateContent`) in Gemini URLs. *Tags:* #shell
 - **2026-11-02 — A research subagent was blocked by auto mode.** *What:* the Databricks-docs research subagent was refused, so the docs were fetched inline instead. *Why it matters:* permission modes are a visible safety feature, and plans should not depend on a single delegation path. *Tags:* #permissions #talk
 
 ## Still Open
