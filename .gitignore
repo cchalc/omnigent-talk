@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# omnigent-talk: local-only (repo is public — no workspace hosts, IDs, or secrets)
+.env.local
+.isaac/
+mtime-test-*/
+talk/fallbacks/*.mov

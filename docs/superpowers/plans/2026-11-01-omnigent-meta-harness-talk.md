@@ -149,11 +149,13 @@ talk/fallbacks/*.mp4
 - [ ] **Step 2: Write `.env.example`** (names only, no values)
 
 ```bash
-DBX_PROFILE=            # AWS workspace profile hosting the Omnigent server + Sandbox — presenter chooses
+DBX_PROFILE=            # AWS workspace profile hosting the Omnigent server + Sandbox — presenter chooses (fevm-cjc)
 DBX_GCP_PROFILE=        # optional GCP workspace profile for Gemini/memory demos — presenter chooses
-OMNI_SERVER=            # Omnigent server URL (workspace URL); never commit
-GEMINI_MODEL=           # Gemini 4 Argon model/endpoint name as served by Unity Gateway (Task 3)
-GEMINI_FLASH_MODEL=     # Gemini 3.8 Flash name (Task 3)
+OMNI_SERVER=            # Omnigent server URL (<workspace>/api/2.0/omnigent); never commit
+OMNIGENT_CONFIG_HOME=   # isolated Omnigent home, same as the omni-fevm wrapper ($HOME/.omnigent-fevm)
+OMNIGENT_DATA_DIR=      # same dir; keeps auth tokens / host daemon separate from ~/.omnigent
+GEMINI_MODEL=           # main live Gemini model (system.ai.gemini-3-8-flash on FEVM; Argon is GCP-only)
+GEMINI_FLASH_MODEL=     # cheaper Gemini for contrast (system.ai.gemini-3-1-flash-lite)
 WAREHOUSE_ID=           # SQL warehouse for usage queries (Task 9)
 MEMORY_STORE=           # agent memory store id (Task 11)
 ```
@@ -532,14 +534,14 @@ exit $ok
 ## Decisions (presenter)
 
 2026-11-01:
-1. **Profiles:** to be provided later. Task 3 onward is blocked until then. Tasks 1–2 can proceed.
+1. **Profiles:** to be provided later. Task 3 onward is blocked until then. Tasks 1–2 can proceed. *Superseded by 11:* `fevm-cjc`, given 2026-11-02.
 2. **Slot:** 60 min (45 content + 15 Q&A).
 3. **AWS workspace:** OK for agent memory / Sandbox if they're unavailable on GCP. Disclose this on stage.
 4. **Repo:** public at talk time.
 5. **Android:** the presenter has a device and uses the app. The mobile demo stays in.
 
 2026-11-02:
-6. **Omnigent server:** use the presenter's existing Databricks-hosted server (AWS workspace) rather than standing up a GCP one. Consequences: CEL/built-in policies only, Sandbox available, cross-cloud honesty slide.
+6. **Omnigent server:** use the presenter's existing Databricks-hosted server (AWS workspace) rather than standing up a GCP one. Consequences: CEL/built-in policies only, Sandbox available, cross-cloud honesty slide. *Refined by 11:* that server is now the FEVM workspace's managed Omnigent.
 7. **Tracking:** follow ai-kitchen-dbx conventions (`tasks.md` / `checkpoint.md` / `lessons.md`).
 8. **Plan lives on `main`** (merged from `worktree-87fc0046`).
 
@@ -547,6 +549,13 @@ exit $ok
 9. **Upgraded:** omnigent CLI → `0.22.0.dev0` (git `08b7d804`, tracks `omnigent-ai/omnigent` main; extras `antigravity, databricks`). The remote server reports `0.21.0.dev0`. `omni agy` is available. agy `1.4.12` is installed at `~/.local/bin/agy` (official installer, SHA-512 verified). Its `agy install` shell-config step was **skipped**, because the rc files are home-manager symlinks and `~/.local/bin` is already on PATH. Task 4 Step 1 and Task 6 Step 1 are done; pin these in `config/versions.env` during Task 1.
 
 10. **Antigravity profile:** `fevm-cjc` (AWS FEVM workspace) is the Databricks profile for `omni agy`. Probed 2026-11-02: the native Gemini route `POST <ws>/ai-gateway/gemini/v1beta/models/system.ai.gemini-3-8-flash:generateContent` returns 200 with `thoughtSignature`, so the **Task 6 go/no-go passes**. Served Gemini models: `system.ai.gemini-3-1-flash-lite`, `-3-5-flash`, `-3-7-flash`, `-3-8-flash`. **No Gemini 4 Argon** on this workspace; find a workspace that has it, or present Argon from the release note only. Legacy `databricks-gemini-*` endpoints return 403 *"no longer available. Use Unity Catalog model services."* All Gemini names in this plan should be `system.ai.gemini-*`, and Task 3's `smoke.sh` must use the native route (or `system.ai.*` names), not `serving-endpoints query databricks-gemini-*`.
+
+2026-11-02 (night):
+11. **FEVM is the single demo workspace, driven by `omni-fevm`.** Logfood couldn't show gateway traces (no BROWSE on `system`, no `unity_gateway_otel_spans`). On FEVM (`fevm-cjc`) the presenter is a workspace admin and *can* read `system.ai_gateway.usage`. Details are in `docs/omni-fevm.md`.
+    - **Wrapper:** `omni-fevm` is a home-manager fish function next to `omni-dev` / `omni-gtm`. It's **plain `omni`, not `isaac omni`**, with `OMNIGENT_CONFIG_HOME` = `OMNIGENT_DATA_DIR` = `~/.omnigent-fevm`, `OMNIGENT_SERVER` = FEVM's `/api/2.0/omnigent` mount, and `DATABRICKS_CONFIG_PROFILE=fevm-cjc`. Isaac would pre-configure harnesses against the ai-devtools gateway, so usage would land in the wrong workspace. Demo scripts must export the same two `OMNIGENT_*` vars (now in `.env.example`) so they never touch `~/.omnigent`.
+    - **Gemini:** every live demo uses `system.ai.gemini-3-8-flash`. Argon gets a GCP-only release-note slide. This supersedes the "find a workspace with Argon" option in 10.
+    - **Blocker:** FEVM's `/api/2.0/omnigent/v1/me` returned **404** (2026-11-02), so the *Omnigent* workspace preview must be enabled (FEVM Settings → Previews), along with the *Databricks Sandbox* preview for Task 12. Then run `omni-fevm setup`, `omni-fevm login <ws>`, and `omni-fevm host`.
+    - **Harness traffic matrix (to fill in after setup):** org-managed Claude Code settings pin `ANTHROPIC_BASE_URL` / `apiKeyHelper` to the ai-devtools gateway, and `~/.codex/config.toml` does the same for Codex. So the native Claude/Codex TUIs probably won't show up in FEVM usage. pi and agy (Omnigent provider) and direct `claude-sdk` should. Verify with the query in `docs/omni-fevm.md` and record the results here.
 
 ## Lessons to seed (`lessons.md`, Task 1 Step 5)
 
@@ -556,6 +565,8 @@ exit $ok
 - **2026-11-02 — `omni upgrade --dry-run` upgraded for real.** *What:* on a git-tracking install, `--dry-run` printed the resolution and then installed it. *Why it matters:* use `--check` to look without changing anything. *Tags:* #omnigent #talk
 - **2026-11-02 — agy's installer edits shell rc files.** *What:* the final `agy install` step configures the shell, but on a nix/home-manager machine the rc files are read-only store symlinks. *Why it matters:* strip that step and rely on `~/.local/bin` already being on PATH. *Tags:* #nix #antigravity
 - **2026-11-02 — zsh `$var:g` is a modifier.** *What:* `"$HOST/.../$m:generateContent"` was mangled into `.../nerateContent` because zsh treats `:g` as a history modifier. *Why it matters:* always brace (`${m}:generateContent`) in Gemini URLs. *Tags:* #shell
+- **2026-11-02 — "Same wrapper, different server" isn't enough for traces.** *What:* `omni-gtm`-style wrappers only change the Omnigent *server*. Model calls follow the harness's own gateway config: isaac pre-config, org-managed Claude Code settings, and `~/.codex/config.toml` all pin the ai-devtools gateway. *Why it matters:* the server (session state, UI, mobile) and the model gateway (usage, traces) are separate layers. Check where usage actually lands before claiming "it's all traced". *Tags:* #omnigent #harness-engineering #talk
+- **2026-11-02 — Isolate Omnigent per workspace with `OMNIGENT_CONFIG_HOME` + `OMNIGENT_DATA_DIR`.** *What:* the data dir also holds `auth_tokens.json` and the host daemon pidfile, so `~/.omnigent-fevm` separates FEVM completely from the daily-use `~/.omnigent`. *Why it matters:* demo setup can't break the presenter's real config. *Tags:* #omnigent #config
 - **2026-11-02 — A research subagent was blocked by auto mode.** *What:* the Databricks-docs research subagent was refused, so the docs were fetched inline instead. *Why it matters:* permission modes are a visible safety feature, and plans should not depend on a single delegation path. *Tags:* #permissions #talk
 
 ## Still Open
@@ -564,3 +575,6 @@ exit $ok
 - A second account or person for the collaboration demo (Task 13 Step 1).
 - Whether a GCP workspace (`DBX_GCP_PROFILE`) is available for the Gemini/memory demos, or everything runs on the AWS workspace.
 - Whether the Enhanced Unity Gateway preview (Smart Routing) is enabled on the account (Task 7 Step 1).
+- **FEVM previews:** enable *Omnigent* (currently 404) and *Databricks Sandbox*, then run `omni-fevm setup` / `login` / `host` (Decision 11).
+- **FEVM unified trace table:** try AI Gateway → Govern → Traces. If that needs metastore admin (FEVM shares `metastore_aws_us_east_1`), fall back to `system.ai_gateway.usage` plus inference tables.
+- **Harness traffic matrix:** which harnesses' model calls show up in FEVM usage (Decision 11).
