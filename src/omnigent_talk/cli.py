@@ -86,14 +86,23 @@ def cmd_budget(a: argparse.Namespace) -> int:
 
     from omnigent_talk.budget import unity_gateway_budget
 
-    config = WorkspaceClient(profile=gateway.require_env("DBX_PROFILE")).config
+    w = WorkspaceClient(profile=gateway.require_env("DBX_PROFILE"))
+    config = w.config
     if not (config.account_id and config.workspace_id):
         raise SystemExit("The profile needs account_id and workspace_id set.")
+    # A per-user block on a shared workspace would stop everyone, so by default it targets
+    # only the caller. --everyone is the deliberate opt-out.
+    user = w.current_user.me()
+    if not (user.id and user.user_name):
+        raise SystemExit("Could not resolve your user from the profile.")
     body = unity_gateway_budget(
         config.account_id,
         int(config.workspace_id),
         per_user_usd=a.per_user_usd,
+        only_principal=None if a.everyone else int(user.id),
         block=not a.alert_only,
+        # An alert-only budget with no action would do nothing, so it emails you.
+        notify=user.user_name if a.alert_only else None,
     )
     print(json.dumps(body, indent=2))
     return 0
@@ -141,7 +150,12 @@ def parser() -> argparse.ArgumentParser:
 
     bud = sub.add_parser("budget", help="print an account budget body (apply it yourself)")
     bud.add_argument("--per-user-usd", type=float, default=1.0)
-    bud.add_argument("--alert-only", action="store_true")
+    bud.add_argument("--alert-only", action="store_true", help="email instead of blocking")
+    bud.add_argument(
+        "--everyone",
+        action="store_true",
+        help="apply the cap to every user in the workspace, not just you (shared workspaces!)",
+    )
     bud.set_defaults(func=cmd_budget)
     return p
 

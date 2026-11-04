@@ -11,7 +11,9 @@ export UV_PROJECT_ENVIRONMENT := env("HOME") / ".virtualenvs/omnigent-talk"
 # Isolated agy gemini dir for the shim; ~/.gemini is never touched.
 export AGY_DEMO_HOME := env("HOME") / ".cache/omnigent-talk/agy"
 
-bundle := 'databricks bundle --profile "$DBX_PROFILE" --var catalog="$CATALOG" --var schema="$SCHEMA"'
+# REQUESTS_PER_MINUTE: gemini_router's per-user limit. Low (30) trips the 429 demo quickly
+# but can stall agy, which makes several calls per turn; raise it for the agy segment.
+bundle := 'databricks bundle --profile "$DBX_PROFILE" --var catalog="$CATALOG" --var schema="$SCHEMA" --var requests_per_minute="${REQUESTS_PER_MINUTE:-30}"'
 talk := "uv run omnigent-talk"
 talk_memory := "uv run --extra memory omnigent-talk"
 
@@ -83,15 +85,18 @@ ratelimit-demo n="60" service="gemini_router":
 usage-sql pattern="%":
     databricks experimental aitools tools query demos/routing/usage.sql --param service_pattern="$1" --profile "$DBX_PROFILE"
 
-# Print an account budget body: per-user monthly cap on Unity Gateway, block when exceeded
-budget per_user_usd="1.00":
-    {{talk}} budget --per-user-usd "$1"
+# Print an account budget body: blocks YOUR Unity Gateway use past the monthly cap.
+# Flags: --alert-only (email instead of block), --everyone (all users; not on shared workspaces)
+budget per_user_usd="1.00" *flags:
+    {{talk}} budget --per-user-usd "$@"
 
 # === ANTIGRAVITY (agy) ON A CUSTOM MODEL SERVICE ===
 
-# Bare agy through the shim: turns -> gemini_router, background lite calls -> gemini_fast
+# Bare agy through the shim: turns -> gemini_router, background lite calls -> gemini_fast.
+# Runs in the directory you call it from, which becomes agy's workspace
+[no-cd]
 agy *args:
-    {{talk}} shim gemini_router --lite gemini_fast --agy -- "$@"
+    uv run --project "{{justfile_directory()}}" omnigent-talk shim gemini_router --lite gemini_fast --agy -- "$@"
 
 # Long-running shim on SHIM_PORT for `omni agy` (pair with `just agy-provider`)
 agy-serve service="gemini_router" lite="gemini_fast":

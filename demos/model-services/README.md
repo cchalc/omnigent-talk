@@ -17,7 +17,7 @@ just check
 
 | Service | Routing |
 | :---- | :---- |
-| `gemini_router` | 80% Gemini 3.8 Flash, 20% Gemini 3.7 Flash; fallback to 3.5 Flash on 429/5xx; per-user requests-per-minute limit (`requests_per_minute` var) |
+| `gemini_router` | 80% Gemini 3.8 Flash, 20% Gemini 3.7 Flash; fallback to 3.5 Flash on 429/5xx; per-user requests-per-minute limit (`REQUESTS_PER_MINUTE` in `.env.local`, default 30) |
 | `gemini_fast` | 100% Gemini 3.1 Flash Lite. The cheap tier |
 
 ```bash
@@ -34,7 +34,7 @@ What the docs support, and how each one is shown:
 - **Traffic splitting:** up to 5 destinations whose percentages sum to 100. Requests are routed at random, and requests with a session header stick to one destination (session affinity). Shown with `split-demo`, which tallies `modelVersion` locally so there's no wait.
 - **Fallbacks:** destinations are tried in order on 429/5xx. Fallbacks have no traffic split. The retries appear in `routing_information.attempts` in the usage table. **Open:** a deterministic way to force a failure (see below).
 - **Rate limits:** per-user or per-service QPM/TPM, returning HTTP 429. Shown with `ratelimit-demo`.
-- **Budgets:** account-level, with resource type *Unity Gateway*, per-user thresholds, and alert or **block usage** actions. `just budget 0.50` prints the request body. An account admin applies it with `databricks account budgets create --json @budget.json --profile <account-profile>`.
+- **Budgets:** account-level, with resource type *Unity Gateway*, per-user thresholds, and alert or **block usage** actions. A budget can only be narrowed to a workspace, not to a service (services carry no tags). On a shared workspace a per-user block would stop everyone, so `just budget 0.50` blocks **only you**: everyone else gets a $100,000 threshold, and a principal override sets yours to $0.50. `--alert-only` emails you instead of blocking. `--everyone` applies the cap to all users; don't use it on a shared workspace. An account admin applies the printed body with `databricks account budgets create --json @budget.json --profile <account-profile>`.
 - **"Custom routing":** Unity Gateway documents no rule-based routing. The routing in this demo is client-side tiering: agy's background `*-lite` calls go to `gemini_fast`, and its turns go to `gemini_router` (the shim's `--lite`). Say this plainly on the slide.
 
 ## agy on a custom service
@@ -47,7 +47,9 @@ localhost proxy that adds the profile's Databricks auth and pins the target serv
 - **Bare agy:** `just agy -p "…"` runs agy with an isolated `--gemini_dir` whose settings select API-key auth (`modelProvider: gemini`). Without that setting agy ignores `GEMINI_API_KEY` and uses its Google login. Its base URL env var is `GOOGLE_GEMINI_BASE_URL`.
 - **Through Omnigent:** `omni agy --server …` launches agy from the host daemon, so env vars from your shell never reach it. Instead, run `just agy-serve` (fixed `SHIM_PORT` and `SHIM_KEY`), then add the provider that `just agy-provider` prints to your Omnigent config, and make it the gemini default in place of `databricks-gemini-fevm-cjc`. Omnigent's bridge sets `modelProvider: gemini` itself whenever a key provider is in use (read from source, not yet run end to end).
 
-Verified on fevm-cjc (2026-11-03), using system services as the target:
+**Go/no-go passed (2026-11-03):** after `just gateway-deploy`, both custom services list `gemini/v1/generateContent` in `supported_api_types`, and `just probe` returns 200 (`gemini_router` was served by `gemini-3.8-flash`, `gemini_fast` by `gemini-3.1-flash-lite`). `just split-demo 20` came out 16/4 (80/20). `just agy -p "Reply with exactly: pong"` ran with its turn on `gemini_router` and its lite call on `gemini_fast`. `just agy` runs in the directory you call it from, which becomes agy's workspace.
+
+Earlier checks, using system services as the target:
 - `agy -p` went through the shim and answered.
 - agy requested `gemini-3.1-pro-preview` for its turn and `gemini-3.1-flash-lite-preview` for background work.
 - `--lite` routed the two requests to different services.
@@ -76,7 +78,8 @@ Ingress is closed, and the sandbox has its own filesystem and identity. **Egress
 
 ## Still open
 
-1. **Deploy and go/no-go.** Run `just gateway-deploy`, then `just probe`. Agent tooling was blocked from deploying to the shared workspace, so the presenter runs this step. If the native Gemini route rejects a custom service, agy stays on `system.ai.*`, and the split, rate limit and fallback demos run through the unified `/ai-gateway/mlflow/v1/responses` route instead.
-2. **Forced fallback.** Options: make the primary destination a `model_provider_services` CUSTOM provider pointed at an endpoint that always returns 5xx, or show the logged retry attempts from real traffic.
-3. **Budget apply.** Needs an account-level profile for this account and account admin rights.
-4. **Usage table access.** Reading `system.ai_gateway.usage` needs account and metastore admin by default.
+1. **Forced fallback.** Options: make the primary destination a `model_provider_services` CUSTOM provider pointed at an endpoint that always returns 5xx, or show the logged retry attempts from real traffic.
+2. **Budget apply.** Needs an account-level profile for this account and account admin rights.
+3. **Usage table access.** Reading `system.ai_gateway.usage` needs account and metastore admin by default.
+4. **`omni agy` on the custom service.** Run `just agy-serve` and add the provider entry from `just agy-provider`. Not run end to end yet.
+5. **Rate limit vs agy.** At 30 requests per minute, a live agy segment can hit 429s. Set `REQUESTS_PER_MINUTE` higher and redeploy for that segment.
