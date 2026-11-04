@@ -66,6 +66,12 @@ Verified 2026-11-02 unless noted. `DBX` = `https://docs.databricks.com`.
 | Agent YAML | `name`, `prompt`, `executor.{harness, model, auth}`, `policies`; no `extends` | https://github.com/omnigent-ai/omnigent/blob/main/docs/AGENT_YAML_SPEC.md | verified; `executor.harness` vs local parser OPEN |
 | Latest release | v0.20.0 (2026-10-28) | https://github.com/omnigent-ai/omnigent/releases | verified |
 | Full scope | Polly / Debby bundled agents, scheduled tasks, inbox / async calls, browser tools, skills, Slack (`omni integration slack`), cloud sandboxes (`omni sandbox`: modal / daytona / islo), REST API, macOS app, mobile | https://github.com/omnigent-ai/omnigent ; https://omnigent.ai/ ; `omni --help` | verified |
+| Where the agent picker's entries come from | `sys_agent_list` merges `builtins` (`GET /v1/agents`), `session_agents` (one row per session) and `local_configs` (`<cwd>/.omnigent/agent-configs/*.yaml`, top level only) | local package `omnigent/runner/tool_dispatch.py:638,5797,5990` (0.22.0.dev0) | verified 2026-11-03 |
+| Polly and debby are packaged bundles | Seeded at server start from `omnigent/resources/examples/{polly,debby}/`, filtered by `OMNIGENT_SEEDED_AGENTS` | local package `omnigent/server/app.py:1424,1492`, `server/seeded_agents.py:20` | verified 2026-11-03 |
+| "unconfigured" native cards | Host readiness: `False` or missing means `unconfigured`. Also `binary-missing`, `version-too-low`, `needs-auth` | local package `omnigent/harness_availability.py:36-53` | verified 2026-11-03 |
+| Custom agents via `omnigent agent add` | Uploads a bundle dir as a user agent (re-add replaces it). It is listed by `omnigent agent list`, not in `sys_agent_list` builtins | local package `omnigent/cli.py:12468`, `server/routes/builtin_agents.py:452`; observed with rory on FEVM | verified 2026-11-03 |
+| Bundle env expansion is partial | `${VAR}` is expanded only in connection, api_key auth and MCP fields, not `executor.model` / `auth.profile` | local package `omnigent/cli.py:6525` | verified 2026-11-03 |
+| openai-agents harness on a UC model service | `executor.model: <catalog>.<schema>.qwen_code`, `auth: {type: databricks, profile}`, `use_responses: false` returns Qwen chat completions | spike + rory session on FEVM, 2026-11-03; `omnigent/inner/openai_agents_sdk_executor.py:563` | verified 2026-11-03 |
 
 ## Agent behavior
 

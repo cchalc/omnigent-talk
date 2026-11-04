@@ -6,7 +6,7 @@ description: >-
   Unity Gateway model service. Rory plans and dispatches; it writes no code itself, and no
   deploy runs until you approve it.
 
-# The tracked bundle keeps ${CATALOG}, ${SCHEMA} and ${DBX_PROFILE} as placeholders, because the
+# The tracked bundle keeps the catalog, schema and profile as placeholders, because the
 # repo is public. `just agent-render` fills them from .env.local into .omnigent/rory/ (gitignored)
 # and `just agent-add` uploads that copy.
 executor:

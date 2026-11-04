@@ -187,4 +187,35 @@ A local config is for agents to find and launch. A card in the picker needs `omn
   `omnigent agent add`.
 - **Do not edit the Omnigent homes.** Recipes print config for the presenter to apply.
 
-Custom agent: `rory` (agents/rory/) — see below once registered.
+## Custom agent: `rory`
+
+`agents/rory/` is this repo's own bundle. Polly and debby split work by vendor. Rory splits it
+by task: review and deploys go to Codex, and SQL and simple one-shot answers go to Qwen on the
+talk schema's own model service.
+
+| Part | Harness | Role |
+| :---- | :---- | :---- |
+| `rory` (router) | `claude-sdk` | Classifies the request, dispatches it, and starts each reply with `route: <task> -> <worker>`. Writes no code. `blast_radius` with `gate_pushes: true`, `spawn_bounds` of 3 per turn |
+| `codex` | `codex` (headless) | `REVIEW:` reads the diff and lists findings. `PLAN:` runs `just gateway-validate` and `just gateway-plan`. Deploys only on `DEPLOY APPROVED` |
+| `qwen` | `openai-agents` | No tools. Model `${CATALOG}.${SCHEMA}.qwen_code` over the gateway's chat completions (`use_responses: false`), with Databricks profile auth from `DBX_PROFILE` |
+
+Skills: `review` (how to brief codex) and `deploy` (the two-phase gate). The workers are
+headless and cannot answer an approval prompt, so the approval happens in rory's conversation
+with the user. Rory relays `DEPLOY APPROVED` only after the user says yes.
+
+**Registering.** `omnigent agent add` expands `${VAR}` only in connection, api_key auth and MCP
+fields (`omnigent/cli.py:6525`), not in `executor.model` or `auth.profile`. The tracked bundle
+therefore keeps placeholders. `just agent-render` fills them from `.env.local` into the
+gitignored `.omnigent/rory/`, and `just agent-add` renders and uploads that copy.
+`just agents` lists it.
+
+**Where it shows up.** As the code predicts, after `just agent-add` rory is in
+`omnigent agent list` (user scope) and launches by agent id with `sys_session_create`. It is
+not in the `builtins` section of `sys_agent_list`, which reads the unscoped `GET /v1/agents`.
+
+**Verified 2026-11-03** on the FEVM server:
+- `qwen_code` is deployed (`just gateway-deploy`).
+- A spike of the qwen worker returned SQL.
+- A rory session routed the SQL demo prompt to `qwen` and the review prompt to `codex`.
+
+The prompts and outcomes are in `talk/prompts.md`.
