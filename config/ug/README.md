@@ -11,23 +11,25 @@ Schema: https://docs.databricks.com/aws/en/ai-gateway/coding-agent-config-schema
 - `config.default_models`: `default_model` works for every agent. Claude Code also takes `default_{opus,sonnet,haiku,fable}_model`. With a static list, every default must also appear in `model_services`.
 - `smart_routing` / `tracing`: per-agent Unity Gateway features. Smart Routing applies to subagent tasks where supported.
 - `http_headers`: a demo tag. Every developer can see these values, so never put secrets here. Reserved headers (`Authorization`, `Cookie`, `Host`) are rejected.
-- `mcp_servers` / `skills`: Unity Catalog names. **Placeholders:** `omnigent_talk.demo` and `<mcp-server>` must point at real resources before publishing. `gcp-databricks-facts` is the Task 10 skill.
+- `mcp_servers` / `skills`: Unity Catalog names. The three skills use the public-repo placeholder
+  `<CATALOG>.omnigent_talk`; resolve `CATALOG` from `.env.local` before publishing. The MCP entry
+  remains a placeholder until that resource exists.
 
 ## Before publishing
 1. Enable the **Unity Gateway Managed Configuration** preview (Settings → Previews). This needs a workspace admin.
 2. Confirm `system.ai.claude-opus-5-5` and `system.ai.claude-haiku-5-5` are served on the workspace. Only `claude-sonnet-5-5` and `gpt-5-5` have been checked (`docs/setup-log.md` §6). If either isn't served, drop it and its default key.
-3. Replace the MCP and skill placeholders.
+3. Replace `<CATALOG>` in the skill names and replace the MCP placeholder.
 4. Grant `EXECUTE` on the model services to the demo user or group. Developers also need the **Workspace access** or **Consumer access** entitlement to read and apply the config.
 5. Model services must speak the agent's API: Claude Code needs Anthropic Messages, and Codex needs Open/OpenAI Responses. Both are verified on FEVM (`/ai-gateway/anthropic/v1/messages` and `/ai-gateway/codex/v1/responses` returned 200, `docs/setup-log.md` §6).
 
 ## Publish / update
 ```bash
 databricks api post /api/ai-gateway/v2/coding-agent-configs \
-  --profile fevm-cjc --json @config/ug/coding-agent-config.json
+  --profile "$DBX_PROFILE" --json @config/ug/coding-agent-config.json
 
 # update: use the returned `name` and list the changed fields
 databricks api patch "/api/ai-gateway/v2/coding-agent-configs/<name>?update_mask=enabled_agents" \
-  --profile fevm-cjc --json @config/ug/coding-agent-config.json
+  --profile "$DBX_PROFILE" --json @config/ug/coding-agent-config.json
 ```
 Or publish in the UI: **Unity Gateway → Govern → Agent configuration → Edit configuration**, paste the JSON, then **Format JSON** → **Save**. The workspace has one published config, so when editing keep the settings you still need.
 

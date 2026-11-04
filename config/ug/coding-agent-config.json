@@ -34,5 +34,11 @@
     }
   ],
   "mcp_servers": { "names": ["omnigent_talk.demo.<mcp-server>"] },
-  "skills": { "names": ["omnigent_talk.demo.gcp-databricks-facts"] }
+  "skills": {
+    "names": [
+      "<CATALOG>.omnigent_talk.bakehouse_analyst",
+      "<CATALOG>.omnigent_talk.bakehouse_genie",
+      "<CATALOG>.omnigent_talk.gateway_observability"
+    ]
+  }
 }

@@ -163,3 +163,21 @@ dashboard-url:
 # The dashboard's routing breakdown, in the terminal
 routing-metrics:
     databricks experimental aitools tools query demos/routing/metrics.sql --profile "$DBX_PROFILE"
+
+# === UC SKILLS ===
+
+# Create or update the three portable Agent Skills bundles
+skills-sync *args:
+    {{talk}} skills sync "$@"
+
+# List skills registered in CATALOG.omnigent_talk
+skills-list:
+    {{talk}} skills list
+
+# Grant one principal READ VOLUME on all three registered skills
+skills-grant principal:
+    body="$(jq -cn --arg principal "$1" '{changes: [{principal: $principal, add: ["READ_VOLUME"]}]}')"; \
+    for skill in bakehouse_analyst bakehouse_genie gateway_observability; do \
+      databricks grants update volume "$CATALOG.omnigent_talk.$skill" \
+        --profile "$DBX_PROFILE" --json "$body"; \
+    done
