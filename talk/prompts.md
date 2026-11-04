@@ -38,7 +38,25 @@ on the `qwen_code` model service. Paste these into a rory session in order.
 
 | # | Prompt | Expected worker | Outcome |
 |---|---|---|---|
-| 1 | Write a SQL query for the top 5 customers by total revenue from an orders table. | qwen | _pending_ |
+| 1 | Write a SQL query for the top 5 customers by total revenue from an orders table. | qwen | 2026-11-03: `route: sql -> qwen`. One `SUM ... GROUP BY ... LIMIT 5` query plus its assumed columns |
 | 2 | Explain the difference between a LEFT JOIN and a FULL OUTER JOIN with a small example. | qwen | _pending_ |
 | 3 | Review the diff on this branch against its base and list real bugs only. | codex | _pending_ |
 | 4 | Deploy the gateway bundle. | codex, stops at the confirmation gate | _pending_ |
+
+### Build-session prompts sent to agents
+
+These went from the build session to other agents. They are kept because they show the
+meta-harness driving itself.
+
+- To the `qwen-spike` bundle (openai-agents on `qwen_code`, launched with
+  `sys_session_create(config_path=...)`): "Write a SQL query for the top 5 customers by total
+  revenue from an orders table. Reply with only the SQL." It returned one SQL block. This proved
+  the wiring before rory existed.
+- To rory (prompt 3, as sent): "Review the branch cchalcraft/custom-agents against its base
+  cchalcraft/model-services-demo (use `git diff cchalcraft/model-services-demo...cchalcraft/custom-agents`;
+  the branch is checked out in another worktree, so read files with
+  `git show cchalcraft/custom-agents:<path>`). Real bugs, leaks and broken recipes only."
+  Rory replied `route: review -> codex` and sent codex a `REVIEW:` brief.
+- In parallel, a Claude Code reviewer subagent read the same diff, so two vendors reviewed the
+  same change. In the session tree, Claude Code's own subagents show up as Omnigent sub-agents
+  of the build session.

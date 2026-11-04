@@ -3,8 +3,8 @@ name: rory
 description: >-
   A task router for the omnigent-talk repo. Rory sends code review and deployments to a Codex
   worker, and SQL and other simple tasks to a Qwen worker served by the talk schema's qwen_code
-  Unity Gateway model service. Rory plans and dispatches; it writes no code itself, and no
-  deploy runs until you approve it.
+  Unity Gateway model service. Rory plans and dispatches; it writes no code itself, and a
+  policy asks you before any deploy approval reaches the Codex worker.
 
 # The tracked bundle keeps the catalog, schema and profile as placeholders, because the
 # repo is public. `just agent-render` fills them from .env.local into .omnigent/rory/ (gitignored)
@@ -66,13 +66,20 @@ cancellable: true
 guardrails:
   ask_timeout: 86400
   policies:
-    blast_radius:
+    # The real deploy gate. Rory has no shell, so blast_radius would gate nothing, and the
+    # headless codex worker can't answer an ASK. Every message that relays an approval phrase
+    # therefore stops here for the human, whatever the model decided.
+    approval_relay:
       type: function
       on: [tool_call]
       function:
-        path: omnigent.inner.nessie.policies.blast_radius
+        path: omnigent.policies.builtins.cel.cel_policy
         arguments:
-          gate_pushes: true
+          expression: >-
+            event.data.name == "sys_session_send" &&
+            string(event.data.arguments).contains("APPROVED")
+            ? {"result": "ASK", "reason": "Relay a deploy/destroy approval to codex?"}
+            : {"result": "ALLOW"}
     spawn_bounds:
       type: function
       function:

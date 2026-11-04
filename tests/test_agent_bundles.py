@@ -45,9 +45,14 @@ def test_qwen_worker_targets_the_qwen_code_service():
     assert "qwen_code" in services["resources"]["model_services"]
 
 
-def test_router_gates_pushes_and_bounds_dispatches():
+def test_router_asks_before_relaying_an_approval_and_bounds_dispatches():
     policies = CONFIG["guardrails"]["policies"]
-    assert policies["blast_radius"]["function"]["arguments"]["gate_pushes"] is True
+    relay = policies["approval_relay"]["function"]
+    assert relay["path"] == "omnigent.policies.builtins.cel.cel_policy"
+    expression = relay["arguments"]["expression"]
+    assert '"sys_session_send"' in expression
+    assert '.contains("APPROVED")' in expression
+    assert '"ASK"' in expression
     assert policies["spawn_bounds"]["function"]["arguments"]["max_dispatches_per_turn"] <= 3
 
 
@@ -98,6 +103,14 @@ def test_render_copies_the_bundle_and_replaces_stale_output(tmp_path):
     qwen = yaml.safe_load((dest / "agents/qwen/config.yaml").read_text())
     assert qwen["executor"]["model"] == "cat.sch.qwen_code"
     assert (dest / "skills/deploy/SKILL.md").is_file()
+
+
+def test_render_refuses_a_dest_that_overlaps_the_source(tmp_path):
+    (tmp_path / "config.yaml").write_text("name: x\n")
+    for dest in (tmp_path, tmp_path / "out", tmp_path.parent):
+        with pytest.raises(ValueError, match="overlaps"):
+            agent_bundle.render(tmp_path, dest, ENV)
+    assert (tmp_path / "config.yaml").is_file()
 
 
 def test_render_rejects_a_directory_without_config(tmp_path):

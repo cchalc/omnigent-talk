@@ -195,13 +195,17 @@ talk schema's own model service.
 
 | Part | Harness | Role |
 | :---- | :---- | :---- |
-| `rory` (router) | `claude-sdk` | Classifies the request, dispatches it, and starts each reply with `route: <task> -> <worker>`. Writes no code. `blast_radius` with `gate_pushes: true`, `spawn_bounds` of 3 per turn |
+| `rory` (router) | `claude-sdk` | Classifies the request, dispatches it, and starts each reply with `route: <task> -> <worker>`. Writes no code. `approval_relay` (CEL: ASK before any message containing `APPROVED`), `spawn_bounds` of 3 per turn |
 | `codex` | `codex` (headless) | `REVIEW:` reads the diff and lists findings. `PLAN:` runs `just gateway-validate` and `just gateway-plan`. Deploys only on `DEPLOY APPROVED` |
 | `qwen` | `openai-agents` | No tools. Model `${CATALOG}.${SCHEMA}.qwen_code` over the gateway's chat completions (`use_responses: false`), with Databricks profile auth from `DBX_PROFILE` |
 
 Skills: `review` (how to brief codex) and `deploy` (the two-phase gate). The workers are
 headless and cannot answer an approval prompt, so the approval happens in rory's conversation
-with the user. Rory relays `DEPLOY APPROVED` only after the user says yes.
+with the user. Rory relays `DEPLOY APPROVED` only after the user says yes. The `approval_relay`
+policy also stops any `sys_session_send` that contains `APPROVED` with an ASK, so a model slip
+cannot skip the human. `blast_radius` would not catch it: it asks only for kubectl, helm,
+terraform or databricks commands (`omnigent/policies/builtins/orchestration.py:74-77`), and
+`just gateway-deploy` matches none of them.
 
 **Registering.** `omnigent agent add` expands `${VAR}` only in connection, api_key auth and MCP
 fields (`omnigent/cli.py:6525`), not in `executor.model` or `auth.profile`. The tracked bundle

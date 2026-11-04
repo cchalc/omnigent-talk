@@ -37,6 +37,10 @@ def render(src: Path, dest: Path, env: Mapping[str, str]) -> list[Path]:
     """
     if not (src / "config.yaml").is_file():
         raise FileNotFoundError(f"{src} has no config.yaml")
+    s, d = src.resolve(), dest.resolve()
+    if d.is_relative_to(s) or s.is_relative_to(d):
+        # `dest` is wiped first, so an overlap would delete the bundle being rendered.
+        raise ValueError(f"{dest} overlaps {src}")
     if dest.exists():
         shutil.rmtree(dest)
     rendered: list[Path] = []
