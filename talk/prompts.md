@@ -41,7 +41,7 @@ on the `qwen_code` model service. Paste these into a rory session in order.
 | 1 | Write a SQL query for the top 5 customers by total revenue from an orders table. | qwen | 2026-11-03: `route: sql -> qwen`. One `SUM ... GROUP BY ... LIMIT 5` query plus its assumed columns |
 | 2 | Explain the difference between a LEFT JOIN and a FULL OUTER JOIN with a small example. | qwen | _pending_ |
 | 3 | Review the diff on this branch against its base and list real bugs only. | codex | 2026-11-03: `route: review -> codex`. Three findings, all fixed on the branch: path traversal in `render-agent`, a headless deploy that can't answer the CLI's confirmation, and a destroy path with no plan. The Claude reviewer found the traversal too, plus a prompt-only gate. Both vendors caught the same top bug |
-| 4 | Deploy the gateway bundle. | codex, stops at the confirmation gate | _pending_ |
+| 4 | Deploy the gateway bundle. | codex, stops at the confirmation gate | 2026-11-03: `route: deploy -> codex`, plan step only. Validation passed, but `just gateway-plan` was missing: the worker runs in the session's cwd, on the base branch, before this branch merged. Codex refused to substitute another command and deployed nothing. Rerun after the merge to reach the approval question |
 
 ### Build-session prompts sent to agents
 
