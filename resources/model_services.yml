@@ -1,7 +1,13 @@
-# Model services are Beta in DABs. `just gateway-apply` is the CLI fallback for the same shapes.
+# Model services are Beta in DABs.
+#
+# How a service picks a destination: it never reads the prompt. With several destinations it
+# picks one at random by traffic_percentage on each request (a session header pins a session to
+# one). Fallbacks are tried in order only after a 429 or 5xx. Routing by task (code vs. general)
+# therefore happens before the gateway: see src/omnigent_talk/router.py.
 resources:
   model_services:
     # Traffic split 80/20 across two Gemini Flash versions, with an ordered fallback.
+    # agy's main turns go here through the shim.
     gemini_router:
       parent: schemas/${resources.schemas.omnigent_talk.catalog_name}.${resources.schemas.omnigent_talk.name}
       model_service_id: gemini_router
@@ -25,18 +31,12 @@ resources:
                 destination_type: DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL
                 pay_per_token_config:
                   model: models/system.ai.databricks-gemini-3-5-flash
-        rate_limits:
-          - key: RATE_LIMIT_KEY_USER_DEFAULT
-            renewal_period: RATE_LIMIT_RENEWAL_PERIOD_MINUTE
-            requests: ${var.requests_per_minute}
 
-    # Tiers for "custom routing": the caller picks the tier. The gateway itself only
-    # documents splits, fallbacks and session affinity, not rule-based routing. The agy shim's
-    # --lite flag sends agy's background calls to gemini_fast and its turns to gemini_router.
+    # Cheap tier: the router's classifier and agy's background `*-lite` calls.
     gemini_fast:
       parent: schemas/${resources.schemas.omnigent_talk.catalog_name}.${resources.schemas.omnigent_talk.name}
       model_service_id: gemini_fast
-      comment: "omnigent-talk: cheap tier for background and trivial calls"
+      comment: "omnigent-talk: cheap tier for classification and background calls"
       config:
         routing:
           destinations:
@@ -44,4 +44,33 @@ resources:
               destination_type: DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL
               pay_per_token_config:
                 model: models/system.ai.databricks-gemini-3-1-flash-lite
+              traffic_percentage: 100
+
+    # Task routes. The router sends general prompts here.
+    gemini_general:
+      parent: schemas/${resources.schemas.omnigent_talk.catalog_name}.${resources.schemas.omnigent_talk.name}
+      model_service_id: gemini_general
+      comment: "omnigent-talk: router target for general prompts (Gemini 3.8 Flash)"
+      config:
+        routing:
+          destinations:
+            - name: flash_3_8
+              destination_type: DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL
+              pay_per_token_config:
+                model: models/system.ai.databricks-gemini-3-8-flash
+              traffic_percentage: 100
+
+    # Coding and SQL prompts. Qwen speaks the unified chat/responses APIs only, not native
+    # Gemini, so agy can't use it.
+    qwen_code:
+      parent: schemas/${resources.schemas.omnigent_talk.catalog_name}.${resources.schemas.omnigent_talk.name}
+      model_service_id: qwen_code
+      comment: "omnigent-talk: router target for coding and SQL prompts (Qwen 3.5 122B)"
+      config:
+        routing:
+          destinations:
+            - name: qwen35_122b
+              destination_type: DESTINATION_TYPE_PAY_PER_TOKEN_FOUNDATION_MODEL
+              pay_per_token_config:
+                model: models/system.ai.databricks-qwen35-122b-a10b
               traffic_percentage: 100

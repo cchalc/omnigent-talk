@@ -1,0 +1,676 @@
+{
+  "datasets": [
+    {
+      "name": "ds_usage",
+      "displayName": "Demo service usage",
+      "queryLines": [
+        "SELECT\n",
+        "  event_time,\n",
+        "  date_trunc('MINUTE', event_time) AS minute,\n",
+        "  substring_index(endpoint_name, '.', -1) AS service,\n",
+        "  destination_model,\n",
+        "  coalesce(request_tags['route'], '(none)') AS route,\n",
+        "  coalesce(request_tags['demo'], '(untagged)') AS demo,\n",
+        "  coalesce(request_tags['stage'], '') AS stage,\n",
+        "  status_code,\n",
+        "  size(routing_information.attempts) AS attempts,\n",
+        "  CASE WHEN size(routing_information.attempts) > 1 THEN 1 ELSE 0 END AS fell_back,\n",
+        "  CASE WHEN destination_model LIKE '%qwen%' THEN 1 ELSE 0 END AS served_by_qwen,\n",
+        "  latency_ms,\n",
+        "  total_tokens\n",
+        "FROM system.ai_gateway.usage\n",
+        "WHERE endpoint_name LIKE '%.omnigent_talk.%'\n",
+        "  AND event_time >= date_sub(current_date(), 7)\n",
+        "ORDER BY event_time DESC\n"
+      ]
+    },
+    {
+      "name": "ds_router",
+      "displayName": "Router decisions",
+      "queryLines": [
+        "SELECT\n",
+        "  event_time,\n",
+        "  date_trunc('MINUTE', event_time) AS minute,\n",
+        "  substring_index(endpoint_name, '.', -1) AS service,\n",
+        "  destination_model,\n",
+        "  coalesce(request_tags['route'], '(none)') AS route,\n",
+        "  coalesce(request_tags['demo'], '(untagged)') AS demo,\n",
+        "  coalesce(request_tags['stage'], '') AS stage,\n",
+        "  status_code,\n",
+        "  size(routing_information.attempts) AS attempts,\n",
+        "  CASE WHEN size(routing_information.attempts) > 1 THEN 1 ELSE 0 END AS fell_back,\n",
+        "  CASE WHEN destination_model LIKE '%qwen%' THEN 1 ELSE 0 END AS served_by_qwen,\n",
+        "  latency_ms,\n",
+        "  total_tokens\n",
+        "FROM system.ai_gateway.usage\n",
+        "WHERE endpoint_name LIKE '%.omnigent_talk.%'\n",
+        "  AND event_time >= date_sub(current_date(), 7)\n",
+        "  AND request_tags['stage'] = 'answer'\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "routing",
+      "displayName": "Routing",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Unity Gateway routing: omnigent-talk demo services\n",
+                "\n",
+                "**gemini_router** splits 80/20 at random across Gemini 3.8/3.7 Flash, with a fallback to 3.5 Flash. The **router** classifies each prompt with gemini_fast, then sends code and SQL to **qwen_code** and everything else to **gemini_general**. Source: `system.ai_gateway.usage` (rows can take up to an hour)."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-calls",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "count(event_time)",
+                      "expression": "COUNT(`event_time`)"
+                    },
+                    {
+                      "name": "minute",
+                      "expression": "`minute`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(event_time)",
+                  "displayName": "Calls"
+                },
+                "period": {
+                  "fieldName": "minute"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Calls"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-qwen",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "avg(served_by_qwen)",
+                      "expression": "AVG(`served_by_qwen`)"
+                    },
+                    {
+                      "name": "minute",
+                      "expression": "`minute`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg(served_by_qwen)",
+                  "displayName": "Served by Qwen",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                },
+                "period": {
+                  "fieldName": "minute"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Served by Qwen"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-latency",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "avg(latency_ms)",
+                      "expression": "AVG(`latency_ms`)"
+                    },
+                    {
+                      "name": "minute",
+                      "expression": "`minute`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg(latency_ms)",
+                  "displayName": "Avg latency (ms)",
+                  "format": {
+                    "type": "number",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                },
+                "period": {
+                  "fieldName": "minute"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Avg latency (ms)"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-fallbacks",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "sum(fell_back)",
+                      "expression": "SUM(`fell_back`)"
+                    },
+                    {
+                      "name": "minute",
+                      "expression": "`minute`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(fell_back)",
+                  "displayName": "Fallbacks"
+                },
+                "period": {
+                  "fieldName": "minute"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Fallbacks"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "by-service",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "service",
+                      "expression": "`service`"
+                    },
+                    {
+                      "name": "destination_model",
+                      "expression": "`destination_model`"
+                    },
+                    {
+                      "name": "count(event_time)",
+                      "expression": "COUNT(`event_time`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "service",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Service"
+                },
+                "y": {
+                  "fieldName": "count(event_time)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Calls"
+                },
+                "color": {
+                  "fieldName": "destination_model",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Served by"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Which model served each service"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "by-route",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_router",
+                  "fields": [
+                    {
+                      "name": "route",
+                      "expression": "`route`"
+                    },
+                    {
+                      "name": "destination_model",
+                      "expression": "`destination_model`"
+                    },
+                    {
+                      "name": "count(event_time)",
+                      "expression": "COUNT(`event_time`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "route",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Route"
+                },
+                "y": {
+                  "fieldName": "count(event_time)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Calls"
+                },
+                "color": {
+                  "fieldName": "destination_model",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Served by"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Router: task route to model"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "per-minute",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "minute",
+                      "expression": "`minute`"
+                    },
+                    {
+                      "name": "service",
+                      "expression": "`service`"
+                    },
+                    {
+                      "name": "count(event_time)",
+                      "expression": "COUNT(`event_time`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "minute",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Minute"
+                },
+                "y": {
+                  "fieldName": "count(event_time)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Calls"
+                },
+                "color": {
+                  "fieldName": "service",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Service"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Calls per minute by service"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "recent-calls",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "event_time",
+                      "expression": "`event_time`"
+                    },
+                    {
+                      "name": "service",
+                      "expression": "`service`"
+                    },
+                    {
+                      "name": "route",
+                      "expression": "`route`"
+                    },
+                    {
+                      "name": "destination_model",
+                      "expression": "`destination_model`"
+                    },
+                    {
+                      "name": "attempts",
+                      "expression": "`attempts`"
+                    },
+                    {
+                      "name": "status_code",
+                      "expression": "`status_code`"
+                    },
+                    {
+                      "name": "latency_ms",
+                      "expression": "`latency_ms`"
+                    },
+                    {
+                      "name": "total_tokens",
+                      "expression": "`total_tokens`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "event_time",
+                    "displayName": "Time"
+                  },
+                  {
+                    "fieldName": "service",
+                    "displayName": "Service"
+                  },
+                  {
+                    "fieldName": "route",
+                    "displayName": "Route"
+                  },
+                  {
+                    "fieldName": "destination_model",
+                    "displayName": "Served by"
+                  },
+                  {
+                    "fieldName": "attempts",
+                    "displayName": "Attempts"
+                  },
+                  {
+                    "fieldName": "status_code",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "latency_ms",
+                    "displayName": "Latency (ms)"
+                  },
+                  {
+                    "fieldName": "total_tokens",
+                    "displayName": "Tokens"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Recent calls"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 12,
+            "height": 7
+          }
+        }
+      ]
+    },
+    {
+      "name": "filters",
+      "displayName": "Filters",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "filter-date",
+            "queries": [
+              {
+                "name": "q_usage_date",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {
+                      "name": "event_time",
+                      "expression": "`event_time`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "q_router_date",
+                "query": {
+                  "datasetName": "ds_router",
+                  "fields": [
+                    {
+                      "name": "event_time",
+                      "expression": "`event_time`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "event_time",
+                    "queryName": "q_usage_date"
+                  },
+                  {
+                    "fieldName": "event_time",
+                    "queryName": "q_router_date"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Time"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#FCFCFC",
+        "dark": "#1F272D"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "widgetBorderColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "fontColor": {
+        "light": "#11171C",
+        "dark": "#E8ECF0"
+      },
+      "selectionColor": {
+        "light": "#2272B4",
+        "dark": "#8ACAFF"
+      },
+      "visualizationColors": [
+        "#0072B2",
+        "#E69F00",
+        "#009E73",
+        "#CC79A7",
+        "#D55E00",
+        "#56B4E9",
+        "#F0E442"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}

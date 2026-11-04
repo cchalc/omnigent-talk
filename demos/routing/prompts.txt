@@ -1,0 +1,10 @@
+# One prompt per line for `just router-demo`: 3 code, 3 SQL, 3 general.
+Write a Python function that returns the n-th Fibonacci number iteratively.
+Fix this JavaScript so it awaits the fetch: const data = fetch(url).json();
+Write a regular expression that matches ISO 8601 dates like 2026-11-03.
+Write a SQL query for the top 5 customers by total revenue from an orders table.
+Rewrite this to use a window function: SELECT a, (SELECT max(b) FROM t2 WHERE t2.a = t1.a) FROM t1
+Explain the difference between a LEFT JOIN and a FULL OUTER JOIN with a small example.
+What is a meta-harness for coding agents, in two sentences?
+Give me three tips for presenting a live demo at a developer conference.
+Summarize why a team might route different tasks to different language models.

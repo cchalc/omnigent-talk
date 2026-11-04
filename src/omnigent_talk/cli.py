@@ -31,6 +31,38 @@ def cmd_burst(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ask(a: argparse.Namespace) -> int:
+    from omnigent_talk import router
+
+    r = router.ask(gateway.connect(), a.prompt, gateway.service_name)
+    print(f"route={r.route} (by {r.classifier}) -> {r.service} [{r.model}] {r.latency_ms} ms")
+    print(r.reply.text if r.reply.status == 200 else f"HTTP {r.reply.status}: {r.reply.error}")
+    return 0 if r.reply.status == 200 else 1
+
+
+def cmd_router_demo(a: argparse.Namespace) -> int:
+    from collections import Counter
+
+    from omnigent_talk import router
+
+    prompts = [line.strip() for line in Path(a.file).read_text().splitlines()]
+    prompts = [line for line in prompts if line and not line.startswith("#")]
+    gw = gateway.connect()
+    counts: Counter[str] = Counter()
+    failed = 0
+    for prompt in prompts:
+        r = router.ask(gw, prompt, gateway.service_name)
+        ok = r.reply.status == 200
+        failed += not ok
+        counts[f"{r.route:<7} -> {r.model}"] += 1
+        status = "" if ok else f"  HTTP {r.reply.status}"
+        flag = "  (keywords)" if r.classifier == "keywords" else ""
+        print(f"{prompt[:58]:<58}  {r.route:<7} {r.model:<18} {r.latency_ms:>6} ms{flag}{status}")
+    print(f"\n{len(prompts)} prompts:")
+    print(routing.format_tally(counts))
+    return 1 if failed else 0
+
+
 def cmd_shim(a: argparse.Namespace) -> int:
     from omnigent_talk import gemini_shim
 
@@ -147,6 +179,14 @@ def parser() -> argparse.ArgumentParser:
     sbx.add_argument("command")
     sbx.add_argument("--timeout", type=int, default=60)
     sbx.set_defaults(func=cmd_sandbox)
+
+    ask = sub.add_parser("ask", help="route one prompt by task: code/sql -> Qwen, else Gemini")
+    ask.add_argument("prompt")
+    ask.set_defaults(func=cmd_ask)
+
+    demo = sub.add_parser("router-demo", help="route every prompt in a file and tally the routes")
+    demo.add_argument("--file", default="demos/routing/prompts.txt")
+    demo.set_defaults(func=cmd_router_demo)
 
     bud = sub.add_parser("budget", help="print an account budget body (apply it yourself)")
     bud.add_argument("--per-user-usd", type=float, default=1.0)

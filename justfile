@@ -11,9 +11,7 @@ export UV_PROJECT_ENVIRONMENT := env("HOME") / ".virtualenvs/omnigent-talk"
 # Isolated agy gemini dir for the shim; ~/.gemini is never touched.
 export AGY_DEMO_HOME := env("HOME") / ".cache/omnigent-talk/agy"
 
-# REQUESTS_PER_MINUTE: gemini_router's per-user limit. Low (30) trips the 429 demo quickly
-# but can stall agy, which makes several calls per turn; raise it for the agy segment.
-bundle := 'databricks bundle --profile "$DBX_PROFILE" --var catalog="$CATALOG" --var schema="$SCHEMA" --var requests_per_minute="${REQUESTS_PER_MINUTE:-30}"'
+bundle := 'databricks bundle --profile "$DBX_PROFILE" --var catalog="$CATALOG" --var schema="$SCHEMA"'
 talk := "uv run omnigent-talk"
 talk_memory := "uv run --extra memory omnigent-talk"
 
@@ -77,7 +75,8 @@ probe service="gemini_router":
 split-demo n="20" service="gemini_router":
     {{talk}} burst "$2" -n "$1" --tag split
 
-# Rate limit: burst past the per-user requests-per-minute limit and count the 429s
+# Rate limit: burst calls and count the 429s. No service has a rate_limits block yet,
+# so add one to resources/model_services.yml and redeploy before using this
 ratelimit-demo n="60" service="gemini_router":
     {{talk}} burst "$2" -n "$1" --parallel 8 --tag ratelimit
 
@@ -130,3 +129,23 @@ sandbox-run cmd:
 # Show the sandbox has its own identity and filesystem
 sandbox-isolation:
     {{talk}} sandbox 'whoami; echo "home=$HOME"; ls -a ~ | head'
+
+# === TASK ROUTING (code/SQL -> Qwen, everything else -> Gemini 3.8 Flash) ===
+
+# Route one prompt: a gemini_fast call classifies it, then it goes to qwen_code or gemini_general
+ask prompt:
+    {{talk}} ask "$1"
+
+# Route every prompt in demos/routing/prompts.txt and tally the decisions
+router-demo:
+    {{talk}} router-demo
+
+# === ROUTING METRICS ===
+
+# Print the routing dashboard's URL (deployed with `just gateway-deploy`)
+dashboard-url:
+    {{bundle}} summary -o json | jq -r '.resources.dashboards.routing.url'
+
+# The dashboard's routing breakdown, in the terminal
+routing-metrics:
+    databricks experimental aitools tools query demos/routing/metrics.sql --profile "$DBX_PROFILE"

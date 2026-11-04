@@ -12,9 +12,10 @@ variables:
   schema:
     description: Schema for the model services and inference tables
     default: omnigent_talk
-  requests_per_minute:
-    description: Per-user request limit on gemini_router, kept low so the 429 demo trips quickly
-    default: 30
+  warehouse_id:
+    description: SQL warehouse for the routing dashboard, looked up by name so no ID is committed
+    lookup:
+      warehouse: Serverless Starter Warehouse
 
 targets:
   dev:
