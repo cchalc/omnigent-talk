@@ -109,9 +109,18 @@ appear on screen. Only ✅ quotes go on slides.
 - Same codebase, two deployments. OSS: you run the server and host (Databricks Apps + Lakebase `[GAP: facts row]`), Unity Gateway governs, and you bring your own sandbox (`omni sandbox`: modal / daytona / islo, facts: *Full scope*). Managed (**Beta**): workspace IdP, Databricks Sandbox host (**Beta, AWS only**), and Unity Gateway wired in.
 - **Line:** "Start managed, drop to OSS when you need custom control."
 
-### 17 · OSS picture (0:15) / 18 · Managed picture (0:15)
-- 17: "Route the LLM and MCP calls through Unity Gateway and they're governed by Unity Catalog. One control plane." (Not "every call": device settings can pin a harness elsewhere; see N4.)
-- 18 (label *Beta*; Sandbox *AWS only*): "Managed server and Databricks Sandbox, wired to the gateway and workspace identity. Not a walled garden."
+### 17 · OSS picture: cut, folded into 16
+- Say on 16: "Route the LLM and MCP calls through Unity Gateway and they're governed by Unity Catalog. One control plane." (Not "every call": device settings can pin a harness elsewhere; see N4.)
+### N5 · Configure once, pick the gateway (0:45, new): `sections/04-agent-config.md`
+- **Key line:** "The config is the part you keep. The gateway is a setting."
+- **On-slide text:** *Managed config (Beta): one JSON, applied by `ug`, for Claude Code and Codex. Omnigent: one layer over every supported harness, with providers for your gateways.*
+- **Databricks side:** an admin publishes one coding-agent config per workspace. It sets models, defaults, MCP servers and skills, gated by Unity Catalog grants, and `ug` applies it at launch. It's Beta, needs the Managed Configuration preview, and the schema covers **two agents**, Claude Code and Codex. (`ug` itself launches more, e.g. `ug gemini`.)
+- **Omnigent side:** four credential types (API key, subscription, a gateway with base URL and key, a Databricks profile), and the agent YAML picks the harness and auth. "Unity Gateway is a strong default. It isn't the only door."
+- **Receipt:** this laptop already runs two gateways at once. Device settings keep Claude Code and Codex on the org gateway, while Antigravity and pi reach the demo workspace.
+- **Honest limits:** "any gateway" is documented, not demonstrated here. Antigravity needs a gateway that speaks the native Gemini API.
+
+### 18 · Managed picture (0:15)
+- Label *Beta*; Sandbox *AWS only*: "Managed server and Databricks Sandbox, wired to the gateway and workspace identity. Not a walled garden."
 
 ### N4 · One audit trail (0:45, new): `sections/03-routing-usage.md`
 - **Key line:** "Omnigent tells you what the run did. The gateway tells you what every request did, and you can ask it in SQL."

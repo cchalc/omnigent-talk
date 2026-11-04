@@ -3,7 +3,7 @@
 The 22-slide Google deck stays the spine. Four new slides (N1–N4) bring in what this repo built.
 Content is still settling, so `[GAP]` marks what's open. The full list is in `gaps.md`.
 
-**Shape:** about 11 min of story, 7 min of live demo, 1 min close, 1 min buffer. Q&A comes after.
+**Shape:** about 11.5 min of story, 7 min of live demo, 1 min close, 0.5 min buffer. Q&A comes after.
 **Acts:** the deck's three questions (Compose · Collaborate · Control) frame the story and name
 the demo's three acts. The new slides sit inside **Control**, because that's where Databricks
 earns its place: request-level governance underneath Omnigent's run-level control.
@@ -27,20 +27,21 @@ earns its place: request-level governance underneath Omnigent's run-level contro
 | N3 | **Route the work, not the vendor** | Control | 0:45 | **new** | `sections/03-routing-usage.md`. Pre-captured `just ask` still **on the slide**, no terminal switch. On-slide quote: "At this moment in time, we are all token limited." |
 | 15 | Share a live session | Collaborate | 0:15 | trim | Act 2 shows it, so just point forward |
 | 16 | OSS vs managed on Databricks | Databricks | 0:30 | keep | "Start managed, drop to OSS when you need custom control." Label managed *Beta* |
-| 17 | OSS picture | Databricks | 0:15 | trim | |
+| 17 | OSS picture | Databricks | 0:00 | **cut** | Folded into 16. Its line moves there |
+| N5 | **Configure once, pick the gateway** | Databricks | 0:45 | **new** | `sections/04-agent-config.md`. Still, no terminal switch. Databricks managed config (Beta) for Claude Code + Codex; Omnigent providers for any gateway |
 | 18 | Managed picture | Databricks | 0:15 | trim | Label *Beta*; Databricks Sandbox *Beta, AWS only* |
 | N4 | **One audit trail** | Databricks | 0:45 | **new** | `sections/03-routing-usage.md`. Pre-captured, requester-filtered table on the slide, no live query |
 | 20 | Scenario: Auto-Refund | Demo | 0:30 | **moved** | Before slide 19 now, so the room knows the scenario before the demo starts. On-slide quote: "Software is product management" |
 | 19 | Live demo | Demo | 7:00 | **trim** | Act 1 Debby 3:00 · Act 2 share 1:30 · Act 3 Polly + close laptop 2:00 · close line 0:30 |
 | 21 | Who should use it, close | Close | 0:45 | keep | Closer from `dhh-phrases.md` §5. Cross-cloud footer line (prep-reference wants one honesty slide; this is it) |
 | 22 | End | Close | 0:00 | keep | Receipt payoff line (see N1) |
-| | **Total** | | **19:00** | | 1:00 buffer. Optional git beat uses 0:20 of it |
+| | **Total** | | **19:30** | | 0:30 buffer. Optional git beat uses 0:20 of it |
 
 ## Timing authority
 
 This file sets the timings and the still-vs-cutaway choices. Where a section file gives a longer
 estimate (N1 75 s, N2 75 s, N3/N4 60–75 s plus a 30 s cutaway), the outline wins: N1 0:45 without
-the git beat, N2 0:15 slide + 0:45 cutaway, N3 and N4 0:45 each as **stills** (no terminal switch).
+the git beat, N2 0:15 slide + 0:45 cutaway, N3, N4 and N5 0:45 each as **stills** (no terminal switch).
 The sections keep their full demo beats as options for a longer slot.
 
 ## What got trimmed, and why

@@ -15,6 +15,9 @@ collects the ones that change what gets said or shown, and what closes them.
 | D6 | Rust "acid in my eyes" laugh line (risky for a Google room) | Skip | `dhh-phrases.md` |
 | D7 | Rename `databricks-gemini-*` destinations in `resources/model_services.yml`, or keep the file off screen | Off screen | `sections/02-gemini-agy.md` gap 2 |
 | D8 | What "pickling cool cucumbers" refers to | Unused | `dhh-phrases.md` |
+| D9 | N5 title: "Configure once, any gateway" or "…pick the gateway" | "pick the gateway" (no unproven "any") | `sections/04-agent-config.md` |
+| D10 | N5 placement: after 16 (slide 17 folded in) or after 12 | After 16 | `sections/04-agent-config.md` |
+| D11 | Run one non-Databricks gateway (e.g. OpenRouter) through Omnigent, so "any gateway" becomes a receipt | Not run. Needs your approval and a key | `sections/04-agent-config.md` |
 
 ## Must close before rehearsal
 
@@ -63,6 +66,7 @@ copy them, to avoid drift. Add a row before its claim reaches a slide.
 | `sections/01-receipts.md` | Harness traffic matrix, co-author trailer count, hermetic scrub (61 vars), gateway probes all 200, usage lag conflict, Qwen destination, codex reply ≠ row | Matrix, trailers, scrub |
 | `sections/02-gemini-agy.md` | agy usage row, `/model` pick, `--model` drop, runner origin, two layers, base-URL override, streaming route, split and probe results, budgets scope, Argon "model-name change", Gemini-specific governance, "Google product", build versions, model-preselect conflict | agy usage row, `/model` pick |
 | `sections/03-routing-usage.md` | Model services (Beta) doc URL, split and fallback mechanics, 16/4 split, 3.5 fallback config, task router, classifier 9/9, Qwen service, usage lag, account-wide usage, pi table, agy lands, Claude/Codex no row, agy discovery, no rate limit, dashboard shape, bundle names conflict | Model services URL, task router, account-wide usage |
+| `sections/04-agent-config.md` | 18 rows: schema fields, enum (2 agents), preview and Beta, one config per workspace, sync on launch / `ug configure`, entitlements, Omnigent credential types, provider scoping, agent YAML auth, native-agy gateway limit. Also corrections to existing rows: *Coding-agent config schema* (fields omitted), *Routing config* (`request_timeout` is server-level), *Harness tiers* (18 = 3 tiers + an ACP section). `kind: databricks` / `kind: key` UNVERIFIED publicly | Enum, Beta/preview, credential types |
 | `appendix.md` | Budget fields, memory and Sandbox SDK signatures, cross-process memory run, Sandbox output, `ug` probe and sync, preview name, Smart Routing coverage, eval corpus | Only if an appendix slide is promoted |
 
 **Settle these conflicts first:** usage lag (about 20 min observed vs "up to an hour" in the repo),

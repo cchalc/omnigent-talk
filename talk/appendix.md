@@ -129,13 +129,13 @@ databricks account budgets create --json @budget.json --profile <account-profile
 
 **Slide title:** Admin sets the defaults. Developers run `ug`.
 
-**On-slide text:** A published config `[GAP: "one per workspace" unsourced]`: the agents, models, MCP servers and skills each developer gets from `ug`. Beta.
+**On-slide text:** One published config per workspace (sourced in `sections/04-agent-config.md`): the agents, models, MCP servers and skills each developer gets from `ug`. Beta.
 
 **Speaker notes:**
 - Omnigent switches harnesses on the developer's side. Managed config is the admin's side: it decides the defaults before the developer picks anything.
-- Only two agent enums exist: Claude Code and Codex. Gemini CLI can't be set here, so Antigravity stays an Omnigent harness.
+- Only two agent enums exist: Claude Code and Codex. `ug gemini` launches Gemini CLI, but the schema can't configure it, and Antigravity isn't covered at all. That's where Omnigent's providers come in (N5).
 - The draft lists Opus and Haiku 5.5 as model services. Neither is checked as served yet. Say "the draft," not "the config."
-- Agent and model changes reach a developer on relaunch. MCP servers and skills need `ug configure`. That sync claim isn't sourced yet.
+- Agent and model changes reach a developer on relaunch. MCP servers and skills need `ug configure`. Now sourced (configure/govern page, see N5).
 
 **Recipes:** no `just` recipe exists.
 
