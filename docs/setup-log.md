@@ -146,6 +146,78 @@ ClaudeSDKExecutor: model=system.ai.claude-sonnet-5-5, gateway=True, base_url=htt
 - **Correction:** the runner-log `base_url` line shows what Omnigent *asked for*, not where the call went. Only usage or trace rows prove routing.
 - **Outcome for the demo:** on this laptop, **Antigravity (Gemini 3.8 Flash) and pi land on FEVM**. Claude and Codex stay on the org gateway, which is device-level governance working as designed and worth one sentence on stage.
 
+## 2026-11-03 · Session 2: curating the agent picker and building `rory`
+
+Prompt (verbatim in `talk/prompts.md`): curate the custom agents, explain the list, and build an
+agent that sends review and deploys to Codex and simple SQL to Qwen through the talk schema.
+
+### 1. Read the fleet before touching anything
+```text
+sys_agent_list     → 16 builtins, 23 session rows (~10 distinct agents), 0 local_configs
+sys_session_list   → a Codex session editing AGENTS.md (jj + Worktrunk), an Antigravity session
+                     drafting a slide, later a polly session and a talk-narrative session
+```
+- Explanation of the three sources: `docs/omnigent-agents.md`.
+- **Fix (coordination):** the work moved to a Worktrunk child worktree so it couldn't collide with
+  the session editing the primary worktree.
+  ```bash
+  wt switch --create cchalcraft/custom-agents --base cchalcraft/model-services-demo --no-cd
+  ```
+  jj is colocated only in the primary worktree, so `jj log` there shows the pushed bookmark.
+- **Talk point:** one prompt inventories every agent and session on the server and reads what
+  the other harnesses are doing.
+
+### 2. Deploy `qwen_code`
+```bash
+just gateway-validate     # Validation OK!
+just gateway-plan         # create dashboards.routing, gemini_general, qwen_code; update gemini_router, gemini_fast
+just gateway-deploy       # Resources: 3 created, 2 changed, 0 deleted
+just ask "Write a SQL query for the top 5 customers by total revenue from an orders table."
+# → route=sql (by gemini_fast) -> qwen_code [qwen35-122b-a10b] 4549 ms
+```
+- **Blast radius, stated before confirming:** the update to `gemini_router` drops its per-user
+  rate limit (from commit `5a630a7`).
+
+### 3. Spike: the Qwen worker's harness
+`.omnigent/spike-qwen/config.yaml` (local, not tracked) holds:
+- `harness: openai-agents`
+- `model: <catalog>.<schema>.qwen_code`
+- `auth: {type: databricks, profile}`
+- `use_responses: false`
+
+It was launched with `sys_session_create(config_path=...)` and returned one SQL block on the
+first try.
+
+| # | Attempt | Result | Lesson |
+|---|---|---|---|
+| 1 | `config_path` outside the session's cwd (the child worktree) | `config_path escapes the working directory` | Launch from the session's own cwd |
+| 2 | A single YAML at `.omnigent/agent-configs/qwen-spike.yaml` | 404 `config.yaml not found` | `config_path` uploads need a bundle directory |
+| 3 | Directory `.omnigent/spike-qwen/` | SQL returned | Works. `.omnigent/` is gitignored, because rendered files hold the catalog |
+
+### 4. Register rory
+```bash
+just agent-add            # render agents/rory → .omnigent/rory, then omnigent agent add
+# → Installed rory (version 1, id <agent-id>)
+```
+- `omnigent agent add` expands `${VAR}` only in connection, api_key auth and MCP fields, so
+  `just agent-render` fills `executor.model` and `auth.profile` first.
+- **Gotcha:** rory then appears in `omnigent agent list` (user scope), but **not** in the
+  `sys_agent_list` builtins. It launches by agent id.
+
+### 5. Run rory, and have it review itself
+- SQL prompt gave `route: sql -> qwen`.
+- Review prompt gave `route: review -> codex`. Codex found three issues.
+- A Claude Code reviewer subagent read the same diff in parallel and found two of the same
+  class, plus one more.
+- Fixes landed on the branch:
+  - a CEL `approval_relay` policy (ASK before any approval reaches the worker);
+  - no `--auto-approve`, and no destroy from the agent;
+  - slug-only agent names.
+- **Talk point:** the agent reviewed the branch that built it, and a second vendor checked the
+  review.
+- **Caveat:** on this laptop, Codex calls still go to the org gateway (Session 1, §9). Only the
+  Qwen and Gemini traffic lands in the FEVM usage table.
+
 ---
 
 ## Replay script for the demo
