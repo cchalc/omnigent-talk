@@ -2,8 +2,11 @@ import asyncio
 import json
 
 import httpx
+import pytest
 
-from omnigent_talk.gemini_shim import GeminiShim, agy_gemini_dir
+from omnigent_talk.gemini_shim import GeminiShim, agy_gemini_dir, attribution_headers
+
+TAGS = "Databricks-Ai-Gateway-Request-Tags"
 
 
 class Streamed(httpx.AsyncByteStream):
@@ -13,7 +16,11 @@ class Streamed(httpx.AsyncByteStream):
         yield b'{"modelVersion": "gemini-3-8-flash"}'
 
 
-def make_shim(seen: list[httpx.Request], lite: str | None = None) -> GeminiShim:
+def make_shim(
+    seen: list[httpx.Request],
+    lite: str | None = None,
+    attribution: dict[str, str] | None = None,
+) -> GeminiShim:
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
         return httpx.Response(200, stream=Streamed())
@@ -25,6 +32,7 @@ def make_shim(seen: list[httpx.Request], lite: str | None = None) -> GeminiShim:
         lambda: {"Authorization": "Bearer t"},
         upstream,
         lite_service=lite,
+        attribution=attribution,
     )
 
 
@@ -99,3 +107,47 @@ def test_agy_gemini_dir_selects_api_key_auth_and_keeps_other_settings(tmp_path):
         "modelProvider": "gemini",
         "showFeedbackSurvey": False,
     }
+
+
+def test_attribution_merges_env_tags_over_the_default():
+    tags = '{"demo": "bakehouse", "agent_spec": "bakehouse-agy", "client": "agy"}'
+    headers = attribution_headers({"AI_GATEWAY_REQUEST_TAGS": tags})
+    assert json.loads(headers[TAGS]) == {
+        "client": "agy",
+        "demo": "bakehouse",
+        "agent_spec": "bakehouse-agy",
+    }
+    assert set(headers) == {TAGS}
+
+
+def test_attribution_defaults_and_optional_agent_headers():
+    headers = attribution_headers(
+        {"AI_GATEWAY_CODING_AGENT": "antigravity", "AI_GATEWAY_CLIENT_SURFACES": "omnigent"}
+    )
+    assert json.loads(headers[TAGS]) == {"client": "omnigent-talk-gemini-shim"}
+    assert headers["Databricks-Custom-Coding-Agent"] == "antigravity"
+    assert headers["Databricks-Custom-Client-Surfaces"] == "omnigent"
+
+
+@pytest.mark.parametrize("raw", ["not json", "[1]", '{"n": 1}', '{"k": "' + "x" * 5000 + '"}'])
+def test_malformed_or_oversized_tags_fail_loudly(raw):
+    with pytest.raises(SystemExit, match="AI_GATEWAY_REQUEST_TAGS"):
+        attribution_headers({"AI_GATEWAY_REQUEST_TAGS": raw})
+
+
+def test_attribution_is_forwarded_on_every_upstream_call():
+    seen: list[httpx.Request] = []
+    attribution = attribution_headers({"AI_GATEWAY_REQUEST_TAGS": '{"harness": "agy"}'})
+    shim = make_shim(seen, lite="c.s.fast", attribution=attribution)
+    for model in ("gemini-3.1-flash-lite-preview", "gemini-3.8-flash"):
+        post(shim, f"/v1beta/models/{model}:generateContent", {"x-goog-api-key": shim.key})
+    assert [json.loads(r.headers[TAGS])["harness"] for r in seen] == ["agy", "agy"]
+    assert all(r.headers["Authorization"] == "Bearer t" for r in seen)
+
+
+def test_incoming_headers_do_not_override_attribution():
+    seen: list[httpx.Request] = []
+    shim = make_shim(seen, attribution={TAGS: '{"demo": "bakehouse"}'})
+    headers = {"x-goog-api-key": shim.key, TAGS: '{"demo": "spoofed"}'}
+    post(shim, "/v1beta/models/m:generateContent", headers)
+    assert json.loads(seen[0].headers[TAGS]) == {"demo": "bakehouse"}

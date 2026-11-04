@@ -3,7 +3,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 fail=0
-files() { git ls-files -z --cached --others --exclude-standard -- . ':!scripts/check.sh' ':!docs/superpowers/plans/'; }
+# Links are skipped: their targets are scanned at their own paths, and a dangling one would make
+# grep exit 2, which reads as "no match" and hides a real leak in the same batch.
+files() {
+  git ls-files -z --cached --others --exclude-standard -- . ':!scripts/check.sh' ':!docs/superpowers/plans/' \
+    | while IFS= read -r -d '' f; do [ -L "$f" ] || printf '%s\0' "$f"; done
+}
 
 # 1. Secret patterns: Databricks PATs, Google API keys, OpenAI keys, OAuth tokens.
 if files | xargs -0 grep -nIE '(dapi[0-9a-f]{32}|AIza[0-9A-Za-z_-]{35}|sk-[A-Za-z0-9]{20,}|ya29\.[0-9A-Za-z_-]+|"refresh_token")'; then
