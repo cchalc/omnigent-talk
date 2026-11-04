@@ -54,6 +54,10 @@ check: lint test
 gateway-validate:
     {{bundle}} validate --strict --target dev
 
+# Show what a deploy would create, change and delete, without deploying
+gateway-plan:
+    {{bundle}} plan --target dev
+
 # Create or update the schema and the model services
 gateway-deploy:
     {{bundle}} deploy --target dev
@@ -61,6 +65,20 @@ gateway-deploy:
 # Delete everything the bundle created
 gateway-destroy:
     {{bundle}} destroy --target dev
+
+# === CUSTOM OMNIGENT AGENTS (agents/; docs/omnigent-agents.md) ===
+
+# Render agents/<name> into .omnigent/<name> (gitignored), filling CATALOG, SCHEMA, DBX_PROFILE
+agent-render name="rory":
+    {{talk}} render-agent "$1"
+
+# Render, then upload the agent to the Omnigent server, next to polly and debby
+agent-add name="rory": (agent-render name)
+    omnigent agent add ".omnigent/$1" --server "$OMNI_SERVER"
+
+# List the agents you uploaded to the Omnigent server
+agents:
+    omnigent agent list --server "$OMNI_SERVER"
 
 # === AGENT BEHAVIOR EVALUATION (opt-in; creates MLflow state and uses judge tokens) ===
 

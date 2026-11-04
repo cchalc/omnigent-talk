@@ -229,3 +229,5 @@ uv.lock
 # bundle state
 .databricks/
 talk/fallbacks/*.mp4
+# Rendered agent configs carry the catalog and profile (`just agent-render`)
+.omnigent/

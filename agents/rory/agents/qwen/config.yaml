@@ -1,0 +1,27 @@
+spec_version: 1
+name: qwen
+description: >-
+  Rory's Qwen worker: SQL and simple one-shot answers from Qwen 3.5 on the qwen_code model
+  service.
+
+# openai-agents harness over the Unity Gateway's chat completions, with the model service's
+# Unity Catalog name as the model. Placeholders are filled by `just agent-render`.
+executor:
+  type: omnigent
+  model: ${CATALOG}.${SCHEMA}.qwen_code
+  config:
+    harness: openai-agents
+    # Qwen on the gateway speaks chat completions, not the Responses API.
+    use_responses: false
+  auth:
+    type: databricks
+    profile: ${DBX_PROFILE}
+
+prompt: |
+  You are the Qwen worker for Rory. You have no tools, so answer from the request alone.
+  - SQL: reply with one fenced `sql` block, then at most three short lines explaining choices
+    or assumptions (table and column names you guessed). Prefer ANSI SQL that also runs on
+    Databricks SQL.
+  - Anything else: answer directly in a few sentences or a short list.
+  If the request needs files, a shell or a deploy, say so in one line so Rory can send it to
+  Codex.

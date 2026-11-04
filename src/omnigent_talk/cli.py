@@ -140,6 +140,18 @@ def cmd_budget(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_render_agent(a: argparse.Namespace) -> int:
+    import os
+
+    from omnigent_talk import agent_bundle
+
+    src = Path("agents") / a.name
+    dest = Path(".omnigent") / a.name
+    rendered = agent_bundle.render(src, dest, os.environ)
+    print(f"{src} -> {dest} ({len(rendered)} files rendered)")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="omnigent-talk")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -187,6 +199,12 @@ def parser() -> argparse.ArgumentParser:
     demo = sub.add_parser("router-demo", help="route every prompt in a file and tally the routes")
     demo.add_argument("--file", default="demos/routing/prompts.txt")
     demo.set_defaults(func=cmd_router_demo)
+
+    agent = sub.add_parser(
+        "render-agent", help="render agents/<name> into .omnigent/<name> with .env.local values"
+    )
+    agent.add_argument("name")
+    agent.set_defaults(func=cmd_render_agent)
 
     bud = sub.add_parser("budget", help="print an account budget body (apply it yourself)")
     bud.add_argument("--per-user-usd", type=float, default=1.0)
