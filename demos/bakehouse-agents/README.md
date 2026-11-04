@@ -29,12 +29,13 @@ custom `gemini_router` service (80/20 Gemini 3.8 / 3.7 Flash), so the routing sp
 
 ### Attribution: what each harness sends
 
-The contract tags are `{"demo": "bakehouse", "agent_spec": "<bundle>", "harness": "<harness>"}`.
-`just agent <harness>` sets them, but each harness reaches the gateway differently:
+The contract tags are `{"demo": "bakehouse", "agent_spec": "<bundle>", "harness": "<harness>"}`,
+where `<harness>` is the `just agent` name (`agy`, `claude`, `codex`, `pi`). `just agent
+<harness>` sets them, but each harness reaches the gateway differently:
 
 | Harness | How the tags get there | Lands as |
 | :---- | :---- | :---- |
-| agy | `just agent agy` starts the Gemini shim with `AI_GATEWAY_REQUEST_TAGS`; the shim stamps `Databricks-Ai-Gateway-Request-Tags` and `Databricks-Custom-Coding-Agent: antigravity` on every call | full contract tags |
+| agy | `just agent agy` starts the Gemini shim with `AI_GATEWAY_REQUEST_TAGS` and `AI_GATEWAY_AGENT_SPEC`; the shim stamps `Databricks-Ai-Gateway-Request-Tags` and `Databricks-Custom-Coding-Agent: antigravity` on every call. With no settings (a bare `just agy`) it still sends `demo=bakehouse`, `harness=agy`, `agent_spec=unknown` | full contract tags |
 | Claude Code | `ANTHROPIC_CUSTOM_HEADERS` carries the tag header; Omnigent keeps it and appends its own attribution | contract tags, plus `pipeline`/`job` |
 | Codex, pi | `OMNIGENT_CI_CONTEXT`: Omnigent merges it into the tags on gateway routes, but forwards only its CI keys, so `pipeline` = demo and `job` = agent. Omnigent sends `Databricks-Custom-Coding-Agent` (`codex`, `pi`) by itself | `pipeline`, `job`; harness in `session_metadata.coding_agent` |
 
@@ -48,8 +49,12 @@ workspace (`docs/omni-fevm.md`), so their tags land there too.
 
 1. `.env.local` has `DBX_PROFILE`, `CATALOG`, `SCHEMA`, `SHIM_PORT`, `SHIM_KEY`, and the
    Omnigent home and server (`OMNIGENT_CONFIG_HOME`, `OMNIGENT_DATA_DIR`, `OMNI_SERVER`).
-   `just agent` reads those directly and drops inherited `ANTHROPIC_*`, `CLAUDE_CODE_*`,
-   `OMNIGENT_*` and `UG_*` variables, like the `omni-fevm` wrapper.
+   `just agent` reads those from the file and gives `omni` and the shim an explicit
+   environment: a short pass-through list (`PATH`, `HOME`, terminal, locale, proxy), the demo
+   settings, and the profile as both `DBX_PROFILE` and `DATABRICKS_CONFIG_PROFILE`. Inherited
+   routing variables (`ANTHROPIC_*`, `OMNIGENT_*`, `DATABRICKS_HOST`, ...) never reach them. If
+   the shell exports a `DBX_PROFILE` or `DATABRICKS_CONFIG_PROFILE` that differs from
+   `.env.local`, `just agent` stops rather than pick one.
 2. `just agents-print-config` prints the provider entries to add to that Omnigent config. It
    writes nothing. agy takes its endpoint from the **default Gemini provider only**, so the
    `gemini-shim` key provider must be that default (unset `default` on the Databricks Gemini
@@ -113,8 +118,8 @@ Run the traffic **at least an hour before** showing usage: rows can take that lo
   (`docs/setup-log.md`, section 6). The fix belongs upstream in Omnigent.
 - **agy on Gemini 3.1 Pro:** see "Check agy's model" above. Omnigent swallows the gateway's
   "no unambiguous Gemini model" error, so the only symptom is an empty turn.
-- **A shim already on `SHIM_PORT`** (e.g. `just agy-serve`) keeps its own tags; `just agent agy`
-  warns and uses it. Stop it to tag the run.
+- **A process already on `SHIM_PORT`** (e.g. a leftover `just agy-serve`) makes `just agent agy`
+  stop, because that shim's tags are unknown. Stop it and rerun.
 - **Codex on the demo workspace** needs `ucode configure`, which rewrites the shared `~/.codex`
   (`docs/omni-fevm.md`). Until then Codex calls land on the org gateway.
 

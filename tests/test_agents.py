@@ -3,6 +3,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -11,7 +12,15 @@ import pytest
 import yaml
 
 from omnigent_talk import agents
-from omnigent_talk.agents import AGENTS, SKILLS, agent_env, read_env_file, request_tags
+from omnigent_talk.agents import (
+    AGENTS,
+    SKILLS,
+    agent_env,
+    read_env_file,
+    request_tags,
+    shim_env,
+    start_shim,
+)
 
 ROOT = Path(__file__).parents[1]
 BUNDLES = [ROOT / "agents" / a.bundle for a in AGENTS.values()]
@@ -111,53 +120,114 @@ def test_every_bundle_parses_with_the_installed_omnigent():
     ]
 
 
-def test_agent_env_is_hermetic_pinned_and_tagged():
-    inherited = {
-        "PATH": "/bin",
-        "ANTHROPIC_BASE_URL": "https://other.example/ai-gateway/anthropic",
-        "OMNIGENT_SERVER": "https://other.example/api/2.0/omnigent",
-        "OMNIGENT_CONFIG_HOME": "/elsewhere",
-        "CLAUDE_CODE_USE_GATEWAY": "1",
-        "CLAUDECODE": "1",
-        "UG_PROFILE": "x",
-        "DATABRICKS_WORKSPACE_ID": "1",
-    }
-    local = {
-        "DBX_PROFILE": "demo",
-        "OMNI_SERVER": "https://ws.example/api/2.0/omnigent",
-        "OMNIGENT_CONFIG_HOME": "/demo-home",
-    }
-    env = agent_env(AGENTS["claude"], inherited, local)
-    assert env["PATH"] == "/bin"
-    for name in ("ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_GATEWAY", "CLAUDECODE", "UG_PROFILE"):
-        assert name not in env
-    assert "DATABRICKS_WORKSPACE_ID" not in env
-    assert env["OMNIGENT_SERVER"] == local["OMNI_SERVER"]
-    assert env["OMNIGENT_CONFIG_HOME"] == "/demo-home"
-    assert env["DATABRICKS_CONFIG_PROFILE"] == "demo"
-    tags = {"demo": "bakehouse", "agent_spec": "bakehouse-claude", "harness": "claude-native"}
-    assert json.loads(env["AI_GATEWAY_REQUEST_TAGS"]) == tags
-    name, _, value = env["ANTHROPIC_CUSTOM_HEADERS"].partition(": ")
+INHERITED = {
+    "PATH": "/bin",
+    "HOME": "/home/presenter",
+    "ANTHROPIC_BASE_URL": "https://other.example/ai-gateway/anthropic",
+    "OMNIGENT_SERVER": "https://other.example/api/2.0/omnigent",
+    "OMNIGENT_CONFIG_HOME": "/elsewhere",
+    "CLAUDE_CODE_USE_GATEWAY": "1",
+    "CLAUDECODE": "1",
+    "UG_PROFILE": "x",
+    "DATABRICKS_HOST": "https://other.example",
+    "DATABRICKS_TOKEN": "t",
+    "DATABRICKS_WORKSPACE_ID": "1",
+    "SOME_SECRET": "s",
+}
+LOCAL = {
+    "DBX_PROFILE": "demo",
+    "CATALOG": "cat",
+    "SCHEMA": "omnigent_talk",
+    "SHIM_PORT": "8765",
+    "SHIM_KEY": "k",
+    "OMNI_SERVER": "https://ws.example/api/2.0/omnigent",
+    "OMNIGENT_CONFIG_HOME": "/demo-home",
+}
+
+
+def test_agent_env_is_explicit_pinned_and_tagged():
+    env = agent_env(AGENTS["claude"], INHERITED, LOCAL)
+    tags = {"demo": "bakehouse", "agent_spec": "bakehouse-claude", "harness": "claude"}
+    name, _, value = env.pop("ANTHROPIC_CUSTOM_HEADERS").partition(": ")
     assert name == "Databricks-Ai-Gateway-Request-Tags"
     assert json.loads(value) == tags
-    assert json.loads(env["OMNIGENT_CI_CONTEXT"]) == {
+    assert json.loads(env.pop("OMNIGENT_CI_CONTEXT")) == {
         "pipeline": "bakehouse",
         "job": "bakehouse-claude",
     }
+    # Nothing else from the caller: no gateway URLs, Omnigent routing, host or token.
+    assert env == {
+        "PATH": "/bin",
+        "HOME": "/home/presenter",
+        "DBX_PROFILE": "demo",
+        "DATABRICKS_CONFIG_PROFILE": "demo",
+        "CATALOG": "cat",
+        "SCHEMA": "omnigent_talk",
+        "OMNIGENT_SERVER": LOCAL["OMNI_SERVER"],
+        "OMNIGENT_CONFIG_HOME": "/demo-home",
+    }
 
 
-def test_only_agy_gets_shim_headers_and_only_claude_gets_custom_headers():
-    local = {"DBX_PROFILE": "demo"}
+def test_shim_env_is_minimal_and_carries_this_agents_tags():
+    env = shim_env(AGENTS["agy"], INHERITED, LOCAL)
+    assert json.loads(env.pop("AI_GATEWAY_REQUEST_TAGS")) == request_tags(AGENTS["agy"])
+    assert env == {
+        "PATH": "/bin",
+        "HOME": "/home/presenter",
+        "DBX_PROFILE": "demo",
+        "DATABRICKS_CONFIG_PROFILE": "demo",
+        "CATALOG": "cat",
+        "SCHEMA": "omnigent_talk",
+        "SHIM_PORT": "8765",
+        "SHIM_KEY": "k",
+        "AI_GATEWAY_AGENT_SPEC": "bakehouse-agy",
+        "AI_GATEWAY_CODING_AGENT": "antigravity",
+        "AI_GATEWAY_CLIENT_SURFACES": "omnigent",
+    }
+
+
+def test_shim_defaults_and_agent_tags_agree_for_agy():
+    from omnigent_talk.gemini_shim import attribution_headers
+
+    headers = attribution_headers(shim_env(AGENTS["agy"], {}, LOCAL))
+    assert json.loads(headers["Databricks-Ai-Gateway-Request-Tags"]) == {
+        "demo": "bakehouse",
+        "agent_spec": "bakehouse-agy",
+        "harness": "agy",
+    }
+
+
+def test_only_claude_gets_custom_headers():
     for harness, agent in AGENTS.items():
-        env = agent_env(agent, {}, local)
-        assert json.loads(env["AI_GATEWAY_REQUEST_TAGS"]) == request_tags(agent)
-        assert ("AI_GATEWAY_CODING_AGENT" in env) == (harness == "agy")
+        env = agent_env(agent, {}, LOCAL)
         assert ("ANTHROPIC_CUSTOM_HEADERS" in env) == (harness == "claude")
+        assert not any(k.startswith("AI_GATEWAY_") for k in env)
 
 
-def test_agent_env_needs_a_profile():
-    with pytest.raises(SystemExit, match="DBX_PROFILE"):
-        agent_env(AGENTS["agy"], {}, {})
+@pytest.mark.parametrize("name", ["DBX_PROFILE", "DATABRICKS_CONFIG_PROFILE"])
+def test_a_conflicting_inherited_profile_is_refused(name):
+    for build in (agent_env, shim_env):
+        with pytest.raises(SystemExit, match=f"{name}=other"):
+            build(AGENTS["agy"], {name: "other"}, LOCAL)
+
+
+def test_an_agreeing_inherited_profile_is_fine():
+    inherited = {"DBX_PROFILE": "demo", "DATABRICKS_CONFIG_PROFILE": "demo"}
+    assert agent_env(AGENTS["pi"], inherited, LOCAL)["DATABRICKS_CONFIG_PROFILE"] == "demo"
+
+
+def test_the_profile_must_come_from_env_local():
+    with pytest.raises(SystemExit, match=r"DBX_PROFILE is not set in \.env\.local"):
+        agent_env(AGENTS["agy"], {"DBX_PROFILE": "demo"}, {})
+
+
+def test_an_occupied_shim_port_fails_closed():
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        with pytest.raises(SystemExit, match=f"SHIM_PORT {port} is already in use"):
+            start_shim({"SHIM_PORT": str(port), "SHIM_KEY": "k"})
 
 
 def test_read_env_file_strips_comments_and_quotes(tmp_path):

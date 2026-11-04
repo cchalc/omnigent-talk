@@ -109,24 +109,60 @@ def test_agy_gemini_dir_selects_api_key_auth_and_keeps_other_settings(tmp_path):
     }
 
 
-def test_attribution_merges_env_tags_over_the_default():
-    tags = '{"demo": "bakehouse", "agent_spec": "bakehouse-agy", "client": "agy"}'
-    headers = attribution_headers({"AI_GATEWAY_REQUEST_TAGS": tags})
+def test_default_tags_carry_the_whole_contract():
+    headers = attribution_headers({})
     assert json.loads(headers[TAGS]) == {
-        "client": "agy",
         "demo": "bakehouse",
-        "agent_spec": "bakehouse-agy",
+        "harness": "agy",
+        "agent_spec": "unknown",
     }
     assert set(headers) == {TAGS}
 
 
-def test_attribution_defaults_and_optional_agent_headers():
+def test_agent_spec_comes_from_env_and_request_tags_merge_over_the_defaults():
+    env = {
+        "AI_GATEWAY_AGENT_SPEC": "bakehouse-agy",
+        "AI_GATEWAY_REQUEST_TAGS": '{"harness": "agy-bare", "stage": "rehearsal"}',
+    }
+    assert json.loads(attribution_headers(env)[TAGS]) == {
+        "demo": "bakehouse",
+        "harness": "agy-bare",
+        "agent_spec": "bakehouse-agy",
+        "stage": "rehearsal",
+    }
+
+
+def test_optional_agent_headers():
     headers = attribution_headers(
-        {"AI_GATEWAY_CODING_AGENT": "antigravity", "AI_GATEWAY_CLIENT_SURFACES": "omnigent"}
+        {"AI_GATEWAY_CODING_AGENT": "antigravity", "AI_GATEWAY_CLIENT_SURFACES": "omnigent, ug"}
     )
-    assert json.loads(headers[TAGS]) == {"client": "omnigent-talk-gemini-shim"}
     assert headers["Databricks-Custom-Coding-Agent"] == "antigravity"
-    assert headers["Databricks-Custom-Client-Surfaces"] == "omnigent"
+    assert headers["Databricks-Custom-Client-Surfaces"] == "omnigent, ug"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "agy\r\nAuthorization: Bearer stolen",
+        "agy\nX-Injected: 1",
+        "agy\x00",
+        "agy\x7f",
+        "agy\u2028",
+        "caf\u00e9",
+        "a" * 257,
+    ],
+)
+@pytest.mark.parametrize("name", ["AI_GATEWAY_CODING_AGENT", "AI_GATEWAY_CLIENT_SURFACES"])
+def test_header_values_with_control_or_non_ascii_characters_are_rejected(name, value):
+    with pytest.raises(SystemExit, match=name):
+        attribution_headers({name: value})
+
+
+def test_tag_json_with_control_characters_stays_on_one_header_line():
+    raw = json.dumps({"agent_spec": "x\r\nAuthorization: Bearer stolen"})
+    encoded = attribution_headers({"AI_GATEWAY_REQUEST_TAGS": raw})[TAGS]
+    assert "\r" not in encoded and "\n" not in encoded
+    assert json.loads(encoded)["agent_spec"] == "x\r\nAuthorization: Bearer stolen"
 
 
 @pytest.mark.parametrize("raw", ["not json", "[1]", '{"n": 1}', '{"k": "' + "x" * 5000 + '"}'])

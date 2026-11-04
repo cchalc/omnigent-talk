@@ -12,8 +12,9 @@ Omnigent rejects `omni run AGENT --harness <x>-native`, so each bundle binds its
 
 Attribution: every run sets the same request tags (`request_tags`) three ways, because each
 harness reaches the gateway differently:
-- agy: the Gemini shim reads `AI_GATEWAY_REQUEST_TAGS` and stamps every call (`gemini_shim`).
-- Claude Code: Omnigent keeps an inherited `ANTHROPIC_CUSTOM_HEADERS` block and appends its
+- agy: `run` starts the Gemini shim with `AI_GATEWAY_REQUEST_TAGS`, and it stamps every call
+  (`gemini_shim`). A shim already on `SHIM_PORT` is refused, since its tags are unknown.
+- Claude Code: Omnigent keeps the `ANTHROPIC_CUSTOM_HEADERS` block it is given and appends its
   own attribution, so the tag header rides along.
 - Claude Code, Codex, pi: Omnigent merges `OMNIGENT_CI_CONTEXT` into the request tags it sends
   on gateway routes. It only passes known CI keys, so the demo maps onto two of them:
@@ -43,12 +44,23 @@ AGENTS_DIR = ROOT / "agents"
 PROMPT = AGENTS_DIR / "prompt.md"
 SKILLS = ("bakehouse-analyst", "bakehouse-genie", "gateway-observability")
 DEMO = "bakehouse"
-# Inherited from a parent agent session, these send a child harness to another workspace's
-# gateway (docs/omni-fevm.md, round 2). Same list as the presenter's `omni-fevm` wrapper.
-SCRUB_PREFIXES = ("ANTHROPIC_", "CLAUDE_CODE_", "OMNIGENT_", "UG_")
-SCRUB_NAMES = frozenset({"CLAUDECODE", "DATABRICKS_WORKSPACE_ID"})
-# Omnigent settings `.env.local` may carry, re-applied after the scrub.
+# Children get an explicit environment, never the caller's: a parent agent session exports
+# routing variables (`ANTHROPIC_BASE_URL`, `OMNIGENT_*`, `DATABRICKS_HOST`, ...) that send a
+# child to another workspace's gateway (docs/omni-fevm.md, round 2). Passed through: enough to
+# run a CLI and reach the network, and nothing that picks a workspace or a model endpoint.
+BASE_ENV_KEYS = (
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TERM_PROGRAM", "COLORTERM", "LANG",
+    "LC_ALL", "LC_CTYPE", "TMPDIR", "SSH_AUTH_SOCK", "EDITOR", "VISUAL", "CODEX_HOME",
+    "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR",
+    "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE",
+)  # fmt: skip
+# From `.env.local` (the caller's value only when `.env.local` lacks one): what the skills read.
+DEMO_ENV_KEYS = ("CATALOG", "SCHEMA", "WAREHOUSE_ID")
+# What the shim reads besides the profile and the demo keys.
+SHIM_ENV_KEYS = ("SHIM_PORT", "SHIM_KEY")
+# Omnigent settings `.env.local` may carry.
 OMNIGENT_HOME_KEYS = ("OMNIGENT_CONFIG_HOME", "OMNIGENT_DATA_DIR")
+PROFILE_ENV_KEYS = ("DBX_PROFILE", "DATABRICKS_CONFIG_PROFILE")
 
 
 @dataclass(frozen=True)
@@ -70,8 +82,11 @@ AGENTS = {
 
 
 def request_tags(agent: Agent) -> dict[str, str]:
-    """The tags every call from this agent should carry in `system.ai_gateway.usage`."""
-    return {"demo": DEMO, "agent_spec": agent.bundle, "harness": agent.executor_harness}
+    """The tags every call from this agent should carry in `system.ai_gateway.usage`.
+
+    `harness` is the short name (`agy`, `claude`, `codex`, `pi`), the shim's default for agy.
+    """
+    return {"demo": DEMO, "agent_spec": agent.bundle, "harness": agent.harness}
 
 
 def ci_tags(agent: Agent) -> dict[str, str]:
@@ -103,33 +118,56 @@ def read_env_file(path: Path) -> dict[str, str]:
     return values
 
 
+def resolve_profile(environ: Mapping[str, str], local: Mapping[str, str]) -> str:
+    """`DBX_PROFILE` from `.env.local`. An inherited profile that disagrees is an error."""
+    profile = local.get("DBX_PROFILE", "").strip()
+    if not profile:
+        raise SystemExit("DBX_PROFILE is not set in .env.local (see .env.example).")
+    for name in PROFILE_ENV_KEYS:
+        inherited = environ.get(name, "").strip()
+        if inherited and inherited != profile:
+            raise SystemExit(
+                f"{name}={inherited} in this shell, but .env.local has DBX_PROFILE={profile}. "
+                f"Not guessing which workspace you meant: unset {name} or fix .env.local."
+            )
+    return profile
+
+
+def base_env(environ: Mapping[str, str], local: Mapping[str, str], keys: tuple[str, ...]) -> dict:
+    """The pass-through keys, the profile in both spellings, and `keys` from `.env.local`."""
+    profile = resolve_profile(environ, local)
+    env = {k: environ[k] for k in BASE_ENV_KEYS if environ.get(k)}
+    env.update({k: v for k in keys if (v := local.get(k) or environ.get(k, ""))})
+    env.update(DBX_PROFILE=profile, DATABRICKS_CONFIG_PROFILE=profile)
+    return env
+
+
 def agent_env(agent: Agent, environ: Mapping[str, str], local: Mapping[str, str]) -> dict[str, str]:
-    """The environment for `omni run`: hermetic like `omni-fevm`, pinned to `.env.local`, tagged.
+    """The environment for `omni run`: explicit, pinned to `.env.local`, tagged.
 
     `local` is `.env.local`. It is read directly, because a value inherited from a parent
     session would otherwise shadow it.
     """
-    env = {
-        k: v for k, v in environ.items() if not (k.startswith(SCRUB_PREFIXES) or k in SCRUB_NAMES)
-    }
+    env = base_env(environ, local, DEMO_ENV_KEYS)
     for key in OMNIGENT_HOME_KEYS:
         if local.get(key):
             env[key] = os.path.expanduser(local[key].replace("$HOME", "~"))
     if local.get("OMNI_SERVER"):
         env["OMNIGENT_SERVER"] = local["OMNI_SERVER"]
-    profile = local.get("DBX_PROFILE") or environ.get("DBX_PROFILE", "")
-    if not profile:
-        raise SystemExit("DBX_PROFILE is not set. Add it to .env.local (see .env.example).")
-    env["DATABRICKS_CONFIG_PROFILE"] = profile
-    tags = request_tags(agent)
-    encoded = json.dumps(tags, separators=(",", ":"))
-    env["AI_GATEWAY_REQUEST_TAGS"] = encoded
+    encoded = json.dumps(request_tags(agent), separators=(",", ":"))
     env["OMNIGENT_CI_CONTEXT"] = json.dumps(ci_tags(agent), separators=(",", ":"))
-    if agent.harness == "agy":
-        env["AI_GATEWAY_CODING_AGENT"] = "antigravity"
-        env["AI_GATEWAY_CLIENT_SURFACES"] = "omnigent"
     if agent.harness == "claude":
         env["ANTHROPIC_CUSTOM_HEADERS"] = f"Databricks-Ai-Gateway-Request-Tags: {encoded}"
+    return env
+
+
+def shim_env(agent: Agent, environ: Mapping[str, str], local: Mapping[str, str]) -> dict[str, str]:
+    """The environment for the Gemini shim: the profile, the services, this agent's tags."""
+    env = base_env(environ, local, DEMO_ENV_KEYS + SHIM_ENV_KEYS)
+    env["AI_GATEWAY_AGENT_SPEC"] = agent.bundle
+    env["AI_GATEWAY_REQUEST_TAGS"] = json.dumps(request_tags(agent), separators=(",", ":"))
+    env["AI_GATEWAY_CODING_AGENT"] = "antigravity"
+    env["AI_GATEWAY_CLIENT_SURFACES"] = "omnigent"
     return env
 
 
@@ -246,19 +284,17 @@ def port_open(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
-def start_shim(env: dict[str, str]) -> subprocess.Popen[bytes] | None:
-    """Serve the Gemini shim with this agent's tags, unless one already holds SHIM_PORT."""
+def start_shim(env: dict[str, str]) -> subprocess.Popen[bytes]:
+    """Serve the Gemini shim with this agent's tags. A port already in use is an error."""
     port = int(env.get("SHIM_PORT") or 0)
     if not (port and env.get("SHIM_KEY")):
         raise SystemExit("SHIM_PORT and SHIM_KEY must be set in .env.local for the agy agent.")
     if port_open(port):
-        print(
-            f"[agent] a shim is already on {port}; its tags apply, not this agent's. "
-            "Stop it to tag this run.",
-            file=sys.stderr,
-        )
-        return None
-    argv = ["uv", "run", "--project", str(ROOT), "omnigent-talk", "shim", "gemini_router"]
+        # Most likely a `just agy-serve` left running, with other tags or none: refuse to run
+        # with attribution nobody can vouch for.
+        raise SystemExit(f"SHIM_PORT {port} is already in use. Stop that process and retry.")
+    # This interpreter already has the project installed, so no `uv` (or its env) is needed.
+    argv = [sys.executable, "-m", "omnigent_talk.cli", "shim", "gemini_router"]
     shim = subprocess.Popen([*argv, "--lite", "gemini_fast"], env=env, cwd=ROOT)
     deadline = time.monotonic() + 30
     while not port_open(port):
@@ -271,14 +307,11 @@ def start_shim(env: dict[str, str]) -> subprocess.Popen[bytes] | None:
 
 def cmd_run(a: argparse.Namespace) -> int:
     agent = AGENTS[a.harness]
-    env = agent_env(agent, os.environ, read_env_file(ROOT / ".env.local"))
-    shim = None
-    if agent.harness == "agy":
-        # The shim keeps the caller's environment (it needs the profile), plus the tags.
-        tags = {k: v for k, v in env.items() if k.startswith("AI_GATEWAY_")}
-        shim = start_shim({**os.environ, **tags})
+    local = read_env_file(ROOT / ".env.local")
+    env = agent_env(agent, os.environ, local)
+    shim = start_shim(shim_env(agent, os.environ, local)) if agent.harness == "agy" else None
     try:
-        print(f"[agent] {agent.bundle}: tags {env['AI_GATEWAY_REQUEST_TAGS']}", file=sys.stderr)
+        print(f"[agent] {agent.bundle}: tags {json.dumps(request_tags(agent))}", file=sys.stderr)
         return subprocess.call(
             ["omni", "run", str(AGENTS_DIR / agent.bundle), *a.args], env=env, cwd=ROOT
         )

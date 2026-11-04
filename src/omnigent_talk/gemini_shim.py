@@ -14,7 +14,7 @@ Two modes:
 
 Both modes stamp Unity Gateway attribution on every forwarded call, read from the environment
 at startup (`attribution_headers`): `AI_GATEWAY_REQUEST_TAGS` (a JSON object of strings, merged
-over `DEFAULT_REQUEST_TAGS`) becomes `Databricks-Ai-Gateway-Request-Tags`, which lands in
+over the demo's default tags) becomes `Databricks-Ai-Gateway-Request-Tags`, which lands in
 `request_tags` in `system.ai_gateway.usage`. `AI_GATEWAY_CODING_AGENT` and
 `AI_GATEWAY_CLIENT_SURFACES`, when set, become the coding-agent and client-surface headers
 Omnigent itself sends for the harnesses it drives (`omnigent/databricks_ai_gateway.py`).
@@ -55,8 +55,12 @@ CODING_AGENT_ENV = "AI_GATEWAY_CODING_AGENT"
 CLIENT_SURFACES_ENV = "AI_GATEWAY_CLIENT_SURFACES"
 CODING_AGENT_HEADER = "Databricks-Custom-Coding-Agent"
 CLIENT_SURFACES_HEADER = "Databricks-Custom-Client-Surfaces"
-# Every shim call is findable in usage, even when nothing else tagged it.
-DEFAULT_REQUEST_TAGS = {"client": "omnigent-talk-gemini-shim"}
+# The demo's tag contract. Every shim call carries all three, even when nothing else tagged it;
+# `AI_GATEWAY_AGENT_SPEC` names the agent, and `AI_GATEWAY_REQUEST_TAGS` overrides any of them.
+AGENT_SPEC_ENV = "AI_GATEWAY_AGENT_SPEC"
+DEFAULT_REQUEST_TAGS = {"demo": "bakehouse", "harness": "agy"}
+# Plain header values: printable ASCII, so nothing can end the header or start another.
+HEADER_VALUE = re.compile(r"[ -~]{1,256}")
 # Omnigent's budget for the tag header.
 MAX_REQUEST_TAGS_LENGTH = 4096
 
@@ -67,7 +71,8 @@ def log(message: str) -> None:
 
 def attribution_headers(env: Mapping[str, str]) -> dict[str, str]:
     """Gateway attribution headers from the environment. A malformed tag setting fails loudly."""
-    tags = dict(DEFAULT_REQUEST_TAGS)
+    agent_spec = env.get(AGENT_SPEC_ENV, "").strip() or "unknown"
+    tags = {**DEFAULT_REQUEST_TAGS, "agent_spec": agent_spec}
     raw = env.get(REQUEST_TAGS_ENV, "").strip()
     if raw:
         try:
@@ -87,7 +92,10 @@ def attribution_headers(env: Mapping[str, str]) -> dict[str, str]:
         (CODING_AGENT_ENV, CODING_AGENT_HEADER),
         (CLIENT_SURFACES_ENV, CLIENT_SURFACES_HEADER),
     ):
-        if value := env.get(name, "").strip():
+        # Only spaces are trimmed: str.strip() would quietly drop Unicode line separators.
+        if value := env.get(name, "").strip(" "):
+            if not HEADER_VALUE.fullmatch(value):
+                raise SystemExit(f"{name} must be at most 256 printable ASCII characters.")
             headers[header] = value
     return headers
 
