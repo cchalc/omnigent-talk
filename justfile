@@ -100,7 +100,7 @@ usage-sql pattern="%":
 
 # Request-tagged usage and attributable external-model spend
 obs-usage days="7":
-    databricks experimental aitools tools query demos/observability/usage.sql demos/observability/cost.sql --param lookback_days:INT="$1" --profile "$DBX_PROFILE"
+    databricks experimental aitools tools query demos/observability/usage.sql demos/observability/usage_summary.sql demos/observability/cost.sql --param lookback_days:INT="$1" --profile "$DBX_PROFILE"
 
 # gemini_router traffic split, fallback attempts and failures
 obs-routing days="7":

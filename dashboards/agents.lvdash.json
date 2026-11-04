@@ -6,34 +6,157 @@
       "queryLines": [
         "SELECT\n",
         "  date_trunc('HOUR', event_time) AS event_hour,\n",
-        "  coalesce(request_tags['agent_spec'], '(unset)') AS agent_spec,\n",
-        "  coalesce(request_tags['harness'], '(unset)') AS harness,\n",
-        "  coalesce(request_tags['demo'], '(unset)') AS demo,\n",
+        "  coalesce(\n",
+        "    nullif(request_tags['agent_spec'], ''),\n",
+        "    nullif(request_tags['job'], ''),\n",
+        "    '(unset)'\n",
+        "  ) AS agent_spec,\n",
+        "  coalesce(\n",
+        "    nullif(request_tags['harness'], ''),\n",
+        "    nullif(session_metadata.coding_agent, ''),\n",
+        "    '(unset)'\n",
+        "  ) AS harness,\n",
+        "  coalesce(\n",
+        "    nullif(request_tags['demo'], ''),\n",
+        "    nullif(request_tags['pipeline'], ''),\n",
+        "    '(unset)'\n",
+        "  ) AS demo,\n",
         "  coalesce(destination_model, '(unknown)') AS destination_model,\n",
         "  count(*) AS requests,\n",
+        "  sum(coalesce(input_tokens, 0)) AS input_tokens,\n",
+        "  sum(coalesce(output_tokens, 0)) AS output_tokens,\n",
         "  sum(coalesce(total_tokens, 0)) AS total_tokens,\n",
-        "  round(avg(latency_ms)) AS avg_latency_ms\n",
+        "  sum(coalesce(latency_ms, 0)) AS latency_ms_sum\n",
         "FROM system.ai_gateway.usage\n",
-        "WHERE event_time >= date_sub(current_date(), 7)\n",
+        "WHERE event_time >= date_sub(current_date(), :lookback_days)\n",
+        "  AND service_type = 'MODEL_SERVICE'\n",
+        "  AND (\n",
+        "    substring_index(endpoint_name, '.', -1) IN (\n",
+        "      'gemini_router', 'gemini_fast', 'gemini_general', 'qwen_code'\n",
+        "    )\n",
+        "    OR request_tags['demo'] = 'bakehouse'\n",
+        "    OR request_tags['pipeline'] = 'bakehouse'\n",
+        "    OR request_tags['job'] LIKE 'bakehouse-%'\n",
+        "  )\n",
         "GROUP BY ALL\n",
-        "ORDER BY event_hour DESC, requests DESC\n"
+        "ORDER BY event_hour DESC, requests DESC\n",
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "7"}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_usage_summary",
+      "displayName": "Gateway usage summary",
+      "queryLines": [
+        "SELECT\n",
+        "  count(*) AS requests,\n",
+        "  sum(coalesce(total_tokens, 0)) AS total_tokens,\n",
+        "  round(sum(coalesce(latency_ms, 0)) / nullif(count(latency_ms), 0)) AS avg_latency_ms\n",
+        "FROM system.ai_gateway.usage\n",
+        "WHERE event_time >= date_sub(current_date(), :lookback_days)\n",
+        "  AND service_type = 'MODEL_SERVICE'\n",
+        "  AND (\n",
+        "    substring_index(endpoint_name, '.', -1) IN (\n",
+        "      'gemini_router', 'gemini_fast', 'gemini_general', 'qwen_code'\n",
+        "    )\n",
+        "    OR request_tags['demo'] = 'bakehouse'\n",
+        "    OR request_tags['pipeline'] = 'bakehouse'\n",
+        "    OR request_tags['job'] LIKE 'bakehouse-%'\n",
+        "  );\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "7"}]}
+          }
+        }
       ]
     },
     {
       "name": "ds_cost",
       "displayName": "External model spend by request tag",
       "queryLines": [
+        "WITH token_usage AS (\n",
+        "  SELECT\n",
+        "    CAST(event_time AS DATE) AS usage_date,\n",
+        "    coalesce(\n",
+        "      nullif(request_tags['harness'], ''),\n",
+        "      nullif(session_metadata.coding_agent, ''),\n",
+        "      nullif(request_tags['agent_spec'], ''),\n",
+        "      nullif(request_tags['job'], ''),\n",
+        "      '(unset)'\n",
+        "    ) AS harness,\n",
+        "    count(*) AS requests,\n",
+        "    sum(coalesce(total_tokens, 0)) AS total_tokens\n",
+        "  FROM system.ai_gateway.usage\n",
+        "  WHERE event_time >= date_sub(current_date(), :lookback_days)\n",
+        "    AND service_type = 'MODEL_SERVICE'\n",
+        "    AND (\n",
+        "      substring_index(endpoint_name, '.', -1) IN (\n",
+        "        'gemini_router', 'gemini_fast', 'gemini_general', 'qwen_code'\n",
+        "      )\n",
+        "      OR request_tags['demo'] = 'bakehouse'\n",
+        "      OR request_tags['pipeline'] = 'bakehouse'\n",
+        "      OR request_tags['job'] LIKE 'bakehouse-%'\n",
+        "    )\n",
+        "  GROUP BY ALL\n",
+        "),\n",
+        "external_cost AS (\n",
+        "  SELECT\n",
+        "    usage_date,\n",
+        "    coalesce(\n",
+        "      nullif(custom_tags.request_tags['harness'], ''),\n",
+        "      nullif(custom_tags.request_tags['agent_spec'], ''),\n",
+        "      nullif(custom_tags.request_tags['job'], ''),\n",
+        "      '(unset)'\n",
+        "    ) AS harness,\n",
+        "    sum(usage_quantity) AS external_cost_usd\n",
+        "  FROM system.ai_gateway.external_model_spend\n",
+        "  WHERE usage_date >= date_sub(current_date(), :lookback_days)\n",
+        "    AND (\n",
+        "      substring_index(usage_metadata.endpoint_name, '.', -1) IN (\n",
+        "        'gemini_router', 'gemini_fast', 'gemini_general', 'qwen_code'\n",
+        "      )\n",
+        "      OR custom_tags.request_tags['demo'] = 'bakehouse'\n",
+        "      OR custom_tags.request_tags['pipeline'] = 'bakehouse'\n",
+        "      OR custom_tags.request_tags['job'] LIKE 'bakehouse-%'\n",
+        "    )\n",
+        "  GROUP BY ALL\n",
+        ")\n",
         "SELECT\n",
-        "  usage_start_time AS event_hour,\n",
-        "  coalesce(custom_tags.request_tags['agent_spec'], '(unset)') AS agent_spec,\n",
-        "  coalesce(custom_tags.request_tags['harness'], '(unset)') AS harness,\n",
-        "  coalesce(custom_tags.request_tags['demo'], '(unset)') AS demo,\n",
-        "  coalesce(usage_metadata.model, '(unknown)') AS destination_model,\n",
-        "  sum(usage_quantity) AS external_cost_usd\n",
-        "FROM system.ai_gateway.external_model_spend\n",
-        "WHERE usage_date >= date_sub(current_date(), 7)\n",
-        "GROUP BY ALL\n",
-        "ORDER BY event_hour DESC\n"
+        "  coalesce(t.usage_date, c.usage_date) AS usage_date,\n",
+        "  coalesce(t.harness, c.harness) AS harness,\n",
+        "  coalesce(t.requests, 0) AS requests,\n",
+        "  coalesce(t.total_tokens, 0) AS total_tokens,\n",
+        "  round(c.external_cost_usd, 6) AS external_cost_usd\n",
+        "FROM token_usage AS t\n",
+        "FULL OUTER JOIN external_cost AS c\n",
+        "  ON t.usage_date = c.usage_date\n",
+        "  AND t.harness = c.harness\n",
+        "ORDER BY usage_date DESC, requests DESC\n",
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "7"}]}
+          }
+        }
       ]
     },
     {
@@ -46,12 +169,25 @@
         "  count(*) AS requests,\n",
         "  sum(CASE WHEN size(routing_information.attempts) > 1 THEN 1 ELSE 0 END) AS fallbacks,\n",
         "  sum(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS failed_requests,\n",
-        "  round(avg(latency_ms)) AS avg_latency_ms\n",
+        "  round(avg(latency_ms)) AS avg_latency_ms,\n",
+        "  sum(coalesce(total_tokens, 0)) AS total_tokens\n",
         "FROM system.ai_gateway.usage\n",
-        "WHERE event_time >= date_sub(current_date(), 7)\n",
+        "WHERE event_time >= date_sub(current_date(), :lookback_days)\n",
+        "  AND service_type = 'MODEL_SERVICE'\n",
         "  AND substring_index(endpoint_name, '.', -1) = 'gemini_router'\n",
         "GROUP BY ALL\n",
-        "ORDER BY event_hour DESC, requests DESC\n"
+        "ORDER BY event_hour DESC, requests DESC\n",
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "7"}]}
+          }
+        }
       ]
     },
     {
@@ -60,19 +196,58 @@
       "queryLines": [
         "SELECT\n",
         "  max(event_time) AS last_seen,\n",
-        "  CASE WHEN entity_metadata.genie_space_id IS NOT NULL THEN 'GENIE' ELSE coalesce(entity_type, 'DIRECT') END AS observed_entity_type,\n",
-        "  source_table_full_name,\n",
+        "  CASE\n",
+        "    WHEN entity_metadata.genie_space_id IS NOT NULL THEN 'GENIE'\n",
+        "    ELSE coalesce(nullif(entity_type, ''), 'DIRECT')\n",
+        "  END AS observed_entity_type,\n",
+        "  concat(source_table_schema, '.', source_table_name) AS source_object,\n",
         "  source_type,\n",
-        "  target_table_full_name,\n",
+        "  concat(target_table_schema, '.', target_table_name) AS target_object,\n",
         "  target_type,\n",
-        "  count(*) AS edges\n",
+        "  count(*) AS lineage_events\n",
         "FROM system.access.table_lineage\n",
-        "WHERE event_date >= date_sub(current_date(), 30)\n",
-        "  AND (lower(coalesce(source_table_full_name, '')) LIKE '%.omnigent_talk.bakehouse\\_%' ESCAPE '\\\\'\n",
-        "    OR lower(coalesce(target_table_full_name, '')) LIKE '%.omnigent_talk.bakehouse\\_%' ESCAPE '\\\\')\n",
+        "WHERE event_date >= date_sub(current_date(), :lookback_days)\n",
+        "  AND (\n",
+        "    (\n",
+        "      source_table_catalog = coalesce(nullif(:catalog, ''), current_catalog())\n",
+        "      AND source_table_schema = coalesce(nullif(:schema, ''), current_schema())\n",
+        "      AND lower(coalesce(source_table_name, '')) LIKE 'bakehouse\\_%' ESCAPE '\\\\'\n",
+        "    )\n",
+        "    OR (\n",
+        "      target_table_catalog = coalesce(nullif(:catalog, ''), current_catalog())\n",
+        "      AND target_table_schema = coalesce(nullif(:schema, ''), current_schema())\n",
+        "      AND lower(coalesce(target_table_name, '')) LIKE 'bakehouse\\_%' ESCAPE '\\\\'\n",
+        "    )\n",
+        "  )\n",
         "GROUP BY ALL\n",
         "ORDER BY last_seen DESC\n",
-        "LIMIT 1000\n"
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "30"}]}
+          }
+        },
+        {
+          "keyword": "catalog",
+          "displayName": "Catalog scope",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {"dataType": "STRING", "values": [{"value": ""}]}
+          }
+        },
+        {
+          "keyword": "schema",
+          "displayName": "Schema scope",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {"dataType": "STRING", "values": [{"value": ""}]}
+          }
+        }
       ]
     },
     {
@@ -81,19 +256,58 @@
       "queryLines": [
         "SELECT\n",
         "  max(event_time) AS last_seen,\n",
-        "  CASE WHEN entity_metadata.genie_space_id IS NOT NULL THEN 'GENIE' ELSE coalesce(entity_type, 'DIRECT') END AS observed_entity_type,\n",
-        "  source_table_full_name,\n",
+        "  CASE\n",
+        "    WHEN entity_metadata.genie_space_id IS NOT NULL THEN 'GENIE'\n",
+        "    ELSE coalesce(nullif(entity_type, ''), 'DIRECT')\n",
+        "  END AS observed_entity_type,\n",
+        "  concat(source_table_schema, '.', source_table_name) AS source_object,\n",
         "  source_column_name,\n",
-        "  target_table_full_name,\n",
+        "  concat(target_table_schema, '.', target_table_name) AS target_object,\n",
         "  target_column_name,\n",
-        "  count(*) AS mappings\n",
+        "  count(*) AS mapping_events\n",
         "FROM system.access.column_lineage\n",
-        "WHERE event_date >= date_sub(current_date(), 30)\n",
-        "  AND (lower(coalesce(source_table_full_name, '')) LIKE '%.omnigent_talk.bakehouse\\_%' ESCAPE '\\\\'\n",
-        "    OR lower(coalesce(target_table_full_name, '')) LIKE '%.omnigent_talk.bakehouse\\_%' ESCAPE '\\\\')\n",
+        "WHERE event_date >= date_sub(current_date(), :lookback_days)\n",
+        "  AND (\n",
+        "    (\n",
+        "      source_table_catalog = coalesce(nullif(:catalog, ''), current_catalog())\n",
+        "      AND source_table_schema = coalesce(nullif(:schema, ''), current_schema())\n",
+        "      AND lower(coalesce(source_table_name, '')) LIKE 'bakehouse\\_%' ESCAPE '\\\\'\n",
+        "    )\n",
+        "    OR (\n",
+        "      target_table_catalog = coalesce(nullif(:catalog, ''), current_catalog())\n",
+        "      AND target_table_schema = coalesce(nullif(:schema, ''), current_schema())\n",
+        "      AND lower(coalesce(target_table_name, '')) LIKE 'bakehouse\\_%' ESCAPE '\\\\'\n",
+        "    )\n",
+        "  )\n",
         "GROUP BY ALL\n",
         "ORDER BY last_seen DESC\n",
-        "LIMIT 1000\n"
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "30"}]}
+          }
+        },
+        {
+          "keyword": "catalog",
+          "displayName": "Catalog scope",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {"dataType": "STRING", "values": [{"value": ""}]}
+          }
+        },
+        {
+          "keyword": "schema",
+          "displayName": "Schema scope",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {"dataType": "STRING", "values": [{"value": ""}]}
+          }
+        }
       ]
     }
   ],
@@ -124,12 +338,11 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_usage",
+                  "datasetName": "ds_usage_summary",
                   "fields": [
-                    {"name": "sum(requests)", "expression": "SUM(`requests`)"},
-                    {"name": "event_hour", "expression": "`event_hour`"}
+                    {"name": "requests", "expression": "`requests`"}
                   ],
-                  "disaggregated": false
+                  "disaggregated": true
                 }
               }
             ],
@@ -137,8 +350,7 @@
               "version": 2,
               "widgetType": "counter",
               "encodings": {
-                "value": {"fieldName": "sum(requests)", "displayName": "Requests"},
-                "period": {"fieldName": "event_hour"}
+                "value": {"fieldName": "requests", "displayName": "Requests"}
               },
               "frame": {"showTitle": true, "title": "Requests"}
             }
@@ -152,12 +364,11 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_usage",
+                  "datasetName": "ds_usage_summary",
                   "fields": [
-                    {"name": "sum(total_tokens)", "expression": "SUM(`total_tokens`)"},
-                    {"name": "event_hour", "expression": "`event_hour`"}
+                    {"name": "total_tokens", "expression": "`total_tokens`"}
                   ],
-                  "disaggregated": false
+                  "disaggregated": true
                 }
               }
             ],
@@ -166,15 +377,14 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "sum(total_tokens)",
+                  "fieldName": "total_tokens",
                   "displayName": "Tokens",
                   "format": {
                     "type": "number",
                     "abbreviation": "compact",
                     "decimalPlaces": {"type": "max", "places": 1}
                   }
-                },
-                "period": {"fieldName": "event_hour"}
+                }
               },
               "frame": {"showTitle": true, "title": "Tokens"}
             }
@@ -188,12 +398,11 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_usage",
+                  "datasetName": "ds_usage_summary",
                   "fields": [
-                    {"name": "avg(avg_latency_ms)", "expression": "AVG(`avg_latency_ms`)"},
-                    {"name": "event_hour", "expression": "`event_hour`"}
+                    {"name": "avg_latency_ms", "expression": "`avg_latency_ms`"}
                   ],
-                  "disaggregated": false
+                  "disaggregated": true
                 }
               }
             ],
@@ -202,15 +411,14 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "avg(avg_latency_ms)",
+                  "fieldName": "avg_latency_ms",
                   "displayName": "Avg latency",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {"type": "max", "places": 0}
                   },
                   "formatTemplate": "{{ @formatted }} ms"
-                },
-                "period": {"fieldName": "event_hour"}
+                }
               },
               "frame": {"showTitle": true, "title": "Avg latency"}
             }
@@ -230,7 +438,7 @@
                       "name": "sum(external_cost_usd)",
                       "expression": "SUM(`external_cost_usd`)"
                     },
-                    {"name": "event_hour", "expression": "`event_hour`"}
+                    {"name": "usage_date", "expression": "`usage_date`"}
                   ],
                   "disaggregated": false
                 }
@@ -249,7 +457,7 @@
                     "decimalPlaces": {"type": "max", "places": 2}
                   }
                 },
-                "period": {"fieldName": "event_hour"}
+                "period": {"fieldName": "usage_date"}
               },
               "frame": {
                 "showTitle": true,
@@ -610,7 +818,7 @@
               "lines": [
                 "# Bakehouse lineage\n",
                 "\n",
-                "Table and column edges from Unity Catalog. Genie is derived from `entity_metadata.genie_space_id`; jobs and dashboards retain their native entity types."
+                "Table and column lineage events from Unity Catalog. Genie is derived from `entity_metadata.genie_space_id`; jobs and dashboards retain their native entity types."
               ]
             }
           },
@@ -618,42 +826,17 @@
         },
         {
           "widget": {
-            "name": "lineage-table-edges",
+            "name": "lineage-table-events",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
                   "datasetName": "ds_table_lineage",
                   "fields": [
-                    {"name": "sum(edges)", "expression": "SUM(`edges`)"},
-                    {"name": "last_seen", "expression": "`last_seen`"}
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "counter",
-              "encodings": {
-                "value": {"fieldName": "sum(edges)", "displayName": "Table edges"},
-                "period": {"fieldName": "last_seen"}
-              },
-              "frame": {"showTitle": true, "title": "Table lineage edges"}
-            }
-          },
-          "position": {"x": 0, "y": 2, "width": 6, "height": 3}
-        },
-        {
-          "widget": {
-            "name": "lineage-column-mappings",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "ds_column_lineage",
-                  "fields": [
-                    {"name": "sum(mappings)", "expression": "SUM(`mappings`)"},
+                    {
+                      "name": "sum(lineage_events)",
+                      "expression": "SUM(`lineage_events`)"
+                    },
                     {"name": "last_seen", "expression": "`last_seen`"}
                   ],
                   "disaggregated": false
@@ -665,12 +848,46 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "sum(mappings)",
-                  "displayName": "Column mappings"
+                  "fieldName": "sum(lineage_events)",
+                  "displayName": "Table events"
                 },
                 "period": {"fieldName": "last_seen"}
               },
-              "frame": {"showTitle": true, "title": "Column lineage mappings"}
+              "frame": {"showTitle": true, "title": "Table lineage events"}
+            }
+          },
+          "position": {"x": 0, "y": 2, "width": 6, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "lineage-column-events",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_column_lineage",
+                  "fields": [
+                    {
+                      "name": "sum(mapping_events)",
+                      "expression": "SUM(`mapping_events`)"
+                    },
+                    {"name": "last_seen", "expression": "`last_seen`"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(mapping_events)",
+                  "displayName": "Column events"
+                },
+                "period": {"fieldName": "last_seen"}
+              },
+              "frame": {"showTitle": true, "title": "Column lineage events"}
             }
           },
           "position": {"x": 6, "y": 2, "width": 6, "height": 3}
@@ -688,7 +905,10 @@
                       "name": "observed_entity_type",
                       "expression": "`observed_entity_type`"
                     },
-                    {"name": "sum(edges)", "expression": "SUM(`edges`)"}
+                    {
+                      "name": "sum(lineage_events)",
+                      "expression": "SUM(`lineage_events`)"
+                    }
                   ],
                   "disaggregated": false
                 }
@@ -704,9 +924,9 @@
                   "displayName": "Entity type"
                 },
                 "y": {
-                  "fieldName": "sum(edges)",
+                  "fieldName": "sum(lineage_events)",
                   "scale": {"type": "quantitative"},
-                  "displayName": "Edges"
+                  "displayName": "Events"
                 }
               },
               "frame": {"showTitle": true, "title": "Lineage by originating entity"}
@@ -729,14 +949,14 @@
                       "expression": "`observed_entity_type`"
                     },
                     {
-                      "name": "source_table_full_name",
-                      "expression": "`source_table_full_name`"
+                      "name": "source_object",
+                      "expression": "`source_object`"
                     },
                     {
-                      "name": "target_table_full_name",
-                      "expression": "`target_table_full_name`"
+                      "name": "target_object",
+                      "expression": "`target_object`"
                     },
-                    {"name": "edges", "expression": "`edges`"}
+                    {"name": "lineage_events", "expression": "`lineage_events`"}
                   ],
                   "disaggregated": true
                 }
@@ -749,9 +969,9 @@
                 "columns": [
                   {"fieldName": "last_seen", "displayName": "Last seen"},
                   {"fieldName": "observed_entity_type", "displayName": "Entity"},
-                  {"fieldName": "source_table_full_name", "displayName": "Source"},
-                  {"fieldName": "target_table_full_name", "displayName": "Target"},
-                  {"fieldName": "edges", "displayName": "Edges"}
+                  {"fieldName": "source_object", "displayName": "Source"},
+                  {"fieldName": "target_object", "displayName": "Target"},
+                  {"fieldName": "lineage_events", "displayName": "Events"}
                 ]
               },
               "frame": {"showTitle": true, "title": "Table lineage detail"}
@@ -774,16 +994,16 @@
                       "expression": "`observed_entity_type`"
                     },
                     {
-                      "name": "source_table_full_name",
-                      "expression": "`source_table_full_name`"
+                      "name": "source_object",
+                      "expression": "`source_object`"
                     },
                     {"name": "source_column_name", "expression": "`source_column_name`"},
                     {
-                      "name": "target_table_full_name",
-                      "expression": "`target_table_full_name`"
+                      "name": "target_object",
+                      "expression": "`target_object`"
                     },
                     {"name": "target_column_name", "expression": "`target_column_name`"},
-                    {"name": "mappings", "expression": "`mappings`"}
+                    {"name": "mapping_events", "expression": "`mapping_events`"}
                   ],
                   "disaggregated": true
                 }
@@ -796,11 +1016,11 @@
                 "columns": [
                   {"fieldName": "last_seen", "displayName": "Last seen"},
                   {"fieldName": "observed_entity_type", "displayName": "Entity"},
-                  {"fieldName": "source_table_full_name", "displayName": "Source table"},
+                  {"fieldName": "source_object", "displayName": "Source table"},
                   {"fieldName": "source_column_name", "displayName": "Source column"},
-                  {"fieldName": "target_table_full_name", "displayName": "Target table"},
+                  {"fieldName": "target_object", "displayName": "Target table"},
                   {"fieldName": "target_column_name", "displayName": "Target column"},
-                  {"fieldName": "mappings", "displayName": "Mappings"}
+                  {"fieldName": "mapping_events", "displayName": "Events"}
                 ]
               },
               "frame": {"showTitle": true, "title": "Column lineage detail"}

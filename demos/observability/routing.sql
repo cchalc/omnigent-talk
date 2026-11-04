@@ -9,6 +9,8 @@ SELECT
   sum(coalesce(total_tokens, 0)) AS total_tokens
 FROM system.ai_gateway.usage
 WHERE event_time >= date_sub(current_date(), :lookback_days)
+  AND service_type = 'MODEL_SERVICE'
   AND substring_index(endpoint_name, '.', -1) = 'gemini_router'
 GROUP BY ALL
-ORDER BY event_hour DESC, requests DESC;
+ORDER BY event_hour DESC, requests DESC
+LIMIT 1000;

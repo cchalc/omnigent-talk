@@ -4,5 +4,7 @@ resources:
       display_name: "omnigent-talk: agents and Gateway observability"
       file_path: ../dashboards/agents.lvdash.json
       warehouse_id: ${var.warehouse_id}
+      dataset_catalog: ${var.catalog}
+      dataset_schema: ${var.schema}
       # Viewers query account-level system tables through the publisher's credentials.
       embed_credentials: true
