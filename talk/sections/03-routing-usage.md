@@ -6,7 +6,7 @@ Slide numbers refer to the current 22-slide deck; they shift once these two slid
 | Slide | Placement | Slide time | Demo cutaway |
 | :---- | :---- | :---- | :---- |
 | N3 "Route the work, not the vendor" | After slide 14 (Two layers), before slide 15 (Share a session) | 60-75 s | 30 s, pre-captured `just ask` |
-| N4 "One audit trail" | After slide 18 (Managed picture), before slide 19 (Live demo) | 60-75 s | 30 s, requester-filtered query output, plus a cropped dashboard still |
+| N4 "One audit trail" | After slide 18 (Managed picture), before slide 20 (Scenario, now ahead of the demo) | 60-75 s | 30 s, requester-filtered query output, plus a cropped dashboard still |
 
 Budget risk: the story block is about 10 minutes, and these two slides plus cutaways add up to about 3 minutes. See Open threads.
 
@@ -20,8 +20,12 @@ Budget risk: the story block is about 10 minutes, and these two slides plus cuta
 
 **On-slide text (25 words):**
 > Client-side routing. Flash-Lite labels each prompt. Code and SQL go to Qwen; general goes to Gemini 3.8 Flash. Each call is tagged with its route.
+>
+> *"At this moment in time, we are all token limited."* (DHH, Lex Fridman #501, 01:01:16)
 
-Optional footnote, which takes the slide over 25 words if you add it: "Platform version, Beta: Unity Gateway Smart Routing, Claude Code and Codex only."
+`[GAP: "Qwen" on the slide needs a facts row and a probed route; until then, "a code model".]`
+
+Required footnote whenever Smart Routing is spoken (Beta label rule), even though it takes the slide over 25 words: "Platform version, Beta: Unity Gateway Smart Routing, Claude Code and Codex only."
 
 **Visual (corrected routing diagram):**
 
@@ -47,7 +51,7 @@ There is no link from the task router to `gemini_router`, because the task route
 - **How it works, for the presenter:** each prompt makes two calls. The first is a classify call to `gemini_fast`, Flash-Lite, with a 256-token budget (it thinks before answering). The second is the answer call to the route's service. Both carry request tags, so the usage table shows the decision next to the model that served it. If the label can't be parsed, or the classify call fails, keyword rules pick the route, and the tag says `classifier=keywords`.
 - **Why it matters on Databricks:** Unity Gateway can split traffic and fall back on errors. It can't tell code from SQL from small talk. Routing by task is our code, but the decision lands in `system.ai_gateway.usage` with the same governance and the same columns as every other call. The platform team sees both the choice and the model that served it.
 - **Platform version, one line:** "Unity Gateway also has Smart Routing, Beta. It picks models for Claude Code and Codex. What you just saw is different: our code, in this repo, routing the requests it makes itself." [facts.md: Smart Routing (Beta); Smart Routing details]
-- **Token-budget beat (DHH):** "Cheap models for cheap work. At this moment in time, we are all token limited." David Heinemeier Hansson, Lex Fridman Podcast #501, about 01:02. [facts.md: DHH token-limited quote] Say the honest half too: the classifier is itself a call on every prompt, so it has to cost less than it saves.
+- **Token-budget beat (DHH):** Your line: "Cheap models for cheap work." Then the quote: "At this moment in time, we are all token limited." (David Heinemeier Hansson, Lex Fridman Podcast #501, 01:01:16, verified against the transcript text in `dhh-phrases.md`.) [facts row proposed in `dhh-phrases.md`, not yet in facts.md] Say the honest half too: the classifier is itself a call on every prompt, so it has to cost less than it saves.
 - **Two layers link:** "Slide 14 said execution-level control on top, request-level governance underneath. Routing is the request layer making a decision for us, not just recording one."
 - **Facts rows used (by label, in `docs/research/facts.md`):** Smart Routing (Beta); Smart Routing details; Usage table columns; Gemini model names; Gemini 3.8 Flash Databricks-hosted; Gemini 3.7 Flash on Unity Gateway; Budgets / rate limits (not configured here); Model services (Beta) and split/fallback rows [UNVERIFIED, to add]; Client-side task router [to add]; Classifier accuracy [to add]; DHH quote [to add].
 - **Say:** "This is client-side routing. It isn't the platform's Smart Routing, which is Beta and covers Claude Code and Codex."
@@ -73,14 +77,14 @@ There is no link from the task router to `gemini_router`, because the task route
 
 ## N4: One audit trail
 
-**Placement and timing:** after slide 18, the managed picture, and before slide 19, the live demo. Slide 19 runs on a different workspace from the FEVM demos, so say so on the way in. 60-75 s, then a 30 s cutaway.
+**Placement and timing:** after slide 18, the managed picture, and before slide 20, the scenario (moved ahead of the live demo). Slide 19 runs on a different workspace from the FEVM demos, so say so on the way in. 60-75 s, then a 30 s cutaway.
 
 **Title:** One audit trail
 
 **On-slide text (22 words):**
 > Calls through Unity Gateway land in system.ai_gateway.usage: requester, model served, tokens, routing, fallbacks. Queryable in SQL. Request-level governance under Omnigent's run-level control.
 
-**Visual:** a cropped, pre-captured result table from the requester-filtered query (five rows, columns: service, destination model, route, attempts, tokens). No requester column, no endpoint name with the catalog in it. Alternatively, a cropped still of the routing dashboard's four counters and the by-route bar.
+**Visual:** a cropped, pre-captured result table from the requester-filtered query (five rows, columns: service, destination model, route, attempts, tokens). `[GAP: check the destination_model strings before capture; drop the column if any shows a databricks-gemini-* name.]` No requester column, no endpoint name with the catalog in it. Alternatively, a cropped still of the routing dashboard's four counters and the by-route bar.
 
 **Speaker notes**
 

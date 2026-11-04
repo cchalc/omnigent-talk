@@ -17,7 +17,7 @@ Verification legend: **verified** = primary source or recorded probe. **verified
 
 **On-slide text (22 words):**
 
-> agy runs Gemini 3.8 Flash through Unity Gateway. Same usage table as every other model.
+> agy runs Gemini 3.8 Flash through Unity Gateway. Every call lands in the gateway usage table.
 >
 > Community-supported Omnigent harness · Omnigent on Databricks (Beta)
 
@@ -41,11 +41,11 @@ Designer notes: the dotted server box is session state only, not in the model pa
 - **Key line:** "Antigravity is still Antigravity. Its Gemini calls now go through Unity Gateway, so they land in the same usage table as everything else in this talk."
 - **Beat (about 12 s):** "Antigravity is a community-supported harness in Omnigent. I'm running it on Gemini 3.8 Flash, which Databricks serves through Unity Gateway's native Gemini API. Here it is, already open."
   - Sources: [facts: "Antigravity tier"], [facts: "Gemini 3.8 Flash Databricks-hosted (Sep 2 2026)"], [facts: "Native Gemini API route on Unity Gateway"].
-- **Why it matters to Google developers (about 8 s):** "Gemini here is governed like any other model on Unity Gateway. Budgets and rate limits sit in front of it, and every call gets a usage row."
+- **Why it matters to Google developers (about 8 s):** "Unity Gateway offers budgets and rate limits, and agy's calls get usage rows." (Reviewer fix: don't say "like any other model". Claude Code and Codex didn't land on this workspace, and Gemini-specific governance is UNVERIFIED.)
   - Budgets and rate limits: documented [facts: "Budgets / rate limits (Oct 15 2026)"]. Say "available", not "applied". No budget or rate limit is configured on the demo services (`demos/model-services/README.md`).
   - "Same permissions model": UNVERIFIED for Gemini. Cut it until a fact row exists.
 - **Cross-cloud, one sentence, first thing in the cutaway:** "This runs on an AWS workspace. The Gemini docs I'm citing are GCP." Sources: [facts: "FEVM demo workspace"], [facts: "Gemini model names"]. The full cross-cloud slide is in the recap.
-- **Argon line (N2b, optional, about 8 s):** "Gemini 4 Argon is also on Unity Gateway, as of the October 13 release notes. Same gateway, same controls." Source: [facts: "Gemini 4 Argon on Unity Gateway (Oct 13 2026)"]. Don't show it, don't say it runs here, and don't say it's on every cloud or region.
+- **Argon line (N2b, optional, about 8 s):** "Gemini 4 Argon is also on Unity Gateway, as of the October 13 release notes. Same gateway." ("Same controls" has no facts row.) Source: [facts: "Gemini 4 Argon on Unity Gateway (Oct 13 2026)"]. Don't show it, don't say it runs here, and don't say it's on every cloud or region.
   - **HOLD:** the prep-reference point "switching to Argon is a model-name change, not a new integration" has no fact row and is UNVERIFIED. Use the line above instead, until a probe on an Argon-serving workspace shows the same route.
   - The cadence is real and can be said: three Gemini release-note rows in about two months, [facts: "Gemini 3.7 Flash on Unity Gateway (Aug 13 2026)"], [facts: "Gemini 3.8 Flash Databricks-hosted (Sep 2 2026)"], and Argon. That supports "new Gemini models arrive on the gateway as they ship."
 

@@ -7,7 +7,7 @@
 
 ## The arc (20 min)
 
-1. **Open with a receipt (N1).** This talk was built by coding agents, and the git log and usage table prove it. That makes the talk a demo of its own subject.
+1. **Open with a receipt (N1).** This talk was built by coding agents, the git trailers show it, and the usage table shows part of the route. That makes the talk a demo of its own subject.
 2. **Problem.** A wall of harnesses, each with its own config, auth, skills, and policies. Three questions no single harness answers: **Compose · Collaborate · Control**.
 3. **Omnigent.** An open meta-harness, not a fourteenth harness. Clients, server, host, and runner give one uniform session over every harness.
 4. **Compose.** 18 harnesses in three tiers. Antigravity runs on Gemini 3.8 Flash through Unity Gateway (N2). Then a whole team in one YAML.
@@ -35,7 +35,7 @@ here's why" lands harder than a clean claim. Full bank: `dhh-phrases.md`.
 **Top lines**
 - On slides (✅): *"At this moment in time, we are all token limited."* (N3) · *"The agents are at once both too fast and too slow."* (12) · *"Software is product management."* (20)
 - In the notes (✅): "Agents love the Unix philosophy." · "the fuzzy, vague idea I have" · "Are you gonna look at yourself two years from now…" · "let your gut drive"
-- Chris's own: "The harness will change. The session shouldn't have to." · "Guardrails the agent can't talk its way around." · "Logs show intent. Usage rows show truth." · "Shake off the AI psychosis and just have fun."
+- Chris's own: "The harness will change. The session doesn't have to." · "Guardrails the agent can't talk its way around." · "Logs show intent. Usage rows show truth." · "Shake off the AI psychosis and just have fun."
 
 ## Files
 

@@ -26,6 +26,13 @@ collects the ones that change what gets said or shown, and what closes them.
 6. **Collaboration teammate** for Act 2 (plan "Still Open").
 7. **Timed dry run.** Every timebox is an estimate. Log the overruns in `lessons.md`, which doesn't exist yet. Neither do `tasks.md` and `checkpoint.md`.
 
+## `prep-reference.md` conflicts (existing file, not edited here)
+
+- Line 13 lists `omni agy --model gemini-3.8-flash`, but `--model` is dropped on this build. Use `/model` in agy (`sections/02-gemini-agy.md`).
+- It asks for one Argon release-note *slide*. This draft makes it a spoken line (D3). It also says "a model-name change, not a new integration", which is UNVERIFIED.
+- It points to `talk/fallbacks/antigravity-setup.mov`, which doesn't exist yet.
+- It asks for a cross-cloud recap slide. In this draft that's a one-sentence footer on slide 21.
+
 ## Deck wording fixes (Google deck, not in this repo)
 
 - "Unity AI Gateway" → **Unity Gateway** (slides 14, 16, 17 notes and any on-slide text).

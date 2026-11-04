@@ -106,7 +106,7 @@ need an audio check before going on a slide.
 
 Original phrasing, DHH-flavoured. Do not attribute to DHH. Product claims are flagged.
 
-1. The harness will change. The session shouldn't have to.
+1. The harness will change. The session doesn't have to.
 2. Harness lock-in is a bet on this year's CLI. Put the session one layer up and the bet gets cheaper.
 3. Guardrails the agent can't talk its way around. Not a system prompt that asks nicely.
    `[GAP: slide 13 contextual policies (ALLOW/ASK/DENY) need a facts.md row first.]`
@@ -132,7 +132,7 @@ them."
 **B. Show of hands.** (~50 s)
 "Quick show of hands. Who has more than one coding agent open right now? Keep your hand up if one of
 them is making you wait. That's the thing. The agents are at once too fast and too slow, and the
-answer is not a fourteenth harness. It's an open layer above the 13+ we already have." (Slide 11 count; re-check against the deck.)
+answer is not a fourteenth harness. It's an open layer above the 18 we already have." (facts: *Harness tiers and modes*.)
 
 **C. The fuzzy idea.** (~40 s)
 "I'm going to tell you the fuzzy, vague idea I have. Nobody needs a spec for this talk. One layer above

@@ -83,7 +83,7 @@ just sandbox-isolation                                    # expect: home=/home/s
 
 **Slide title:** A monthly cap on Unity Gateway spend
 
-**On-slide text:** Per-user monthly cap on Unity Gateway. Block past the threshold or send an alert. An account admin applies it.
+**On-slide text:** A spend cap on Unity Gateway. Block past the threshold or send an alert. `[GAP: per-user scope and the admin step are unsourced]`
 
 **Speaker notes:**
 - The repo builds the budget body and prints it. Nothing is applied from here. The apply step needs an account admin.
@@ -129,7 +129,7 @@ databricks account budgets create --json @budget.json --profile <account-profile
 
 **Slide title:** Admin sets the defaults. Developers run `ug`.
 
-**On-slide text:** One published config per workspace: the agents, models, MCP servers and skills each developer gets from `ug`. Beta.
+**On-slide text:** A published config `[GAP: "one per workspace" unsourced]`: the agents, models, MCP servers and skills each developer gets from `ug`. Beta.
 
 **Speaker notes:**
 - Omnigent switches harnesses on the developer's side. Managed config is the admin's side: it decides the defaults before the developer picks anything.
@@ -153,7 +153,7 @@ Developer side, after publishing: `ug configure`, then `ug claude` or `ug codex`
 - Built: `config/ug/coding-agent-config.json` (draft) and `config/ug/README.md` (publish and placeholder steps).
 - Probe 2026-11-03 (`todo.md`): the GET endpoint on the demo workspace returns `{}`. Reachable, nothing published.
 - Not done: the **Unity Gateway Managed Configuration** preview is not enabled. Nothing published. `EXECUTE` not granted. No budget. No propagation test.
-- Placeholders still in the draft: `omnigent_talk.demo.<mcp-server>` and the skill `omnigent_talk.demo.gcp-databricks-facts`, which isn't built (see A6).
+- Placeholders still in the draft: `<catalog>.<schema>.<mcp-server>` and a facts skill `<catalog>.<schema>.<skill>`, which isn't built (see A6).
 
 **Unsourced claims in the README and draft:**
 1. The preview name "Unity Gateway Managed Configuration" and its location under Settings → Previews.
@@ -365,4 +365,4 @@ Planned files: `config/omnigent/policies.yaml` (the CEL expression, using `event
 - A2 and A1: Record one live run each (output, time, fallback). That's what moves them from partial to ready.
 - A4: Decide whether managed config is worth a slide at all, given the preview and the admin dependency. If not, it becomes a single line in the Smart Routing slide's notes.
 - A8: Decide whether behavior evals appear in the talk at all. If they do, the scores need a real run first.
-- A9 and A5: Decide with the presenter whether these stay in the plan or drop out of the 45 minutes. Each is a full segment in the plan.
+- A9 and A5: Decide with the presenter whether these stay in the plan or drop out of the 20 minutes. Each is a full segment in the plan.

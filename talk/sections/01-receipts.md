@@ -14,7 +14,7 @@ Slide N1 turns the title slide's wink into evidence. It's a new slide, inserted 
 
 **On-slide text (17 words):**
 
-> Logs show intent. Usage rows show truth. 16 of 18 commits list a coding agent as co-author.
+> Logs show intent. Usage rows show truth. 16 of 18 commits on the build branch list a coding agent as co-author.
 
 **Visual: two stacked receipts.**
 
@@ -31,7 +31,7 @@ Slide N1 turns the title slide's wink into evidence. It's a new slide, inserted 
 
 Footer line on the receipt, in small type: *"Checked with the usage table, 2026-11-03. Replies don't count, rows do."*
 
-Labels on the slide: Antigravity carries **community-supported** (Omnigent harness tier). The receipt says **AWS demo workspace**, per cross-cloud honesty in `talk/prep-reference.md`.
+Labels on the slide: Antigravity carries **community-supported** (Omnigent harness tier), and the receipt carries **Omnigent on Databricks (Beta)**. The receipt says **AWS demo workspace**, per cross-cloud honesty in `talk/prep-reference.md`.
 
 ---
 
