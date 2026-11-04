@@ -40,7 +40,7 @@ on the `qwen_code` model service. Paste these into a rory session in order.
 |---|---|---|---|
 | 1 | Write a SQL query for the top 5 customers by total revenue from an orders table. | qwen | 2026-11-03: `route: sql -> qwen`. One `SUM ... GROUP BY ... LIMIT 5` query plus its assumed columns |
 | 2 | Explain the difference between a LEFT JOIN and a FULL OUTER JOIN with a small example. | qwen | _pending_ |
-| 3 | Review the diff on this branch against its base and list real bugs only. | codex | _pending_ |
+| 3 | Review the diff on this branch against its base and list real bugs only. | codex | 2026-11-03: `route: review -> codex`. Three findings, all fixed on the branch: path traversal in `render-agent`, a headless deploy that can't answer the CLI's confirmation, and a destroy path with no plan. The Claude reviewer found the traversal too, plus a prompt-only gate. Both vendors caught the same top bug |
 | 4 | Deploy the gateway bundle. | codex, stops at the confirmation gate | _pending_ |
 
 ### Build-session prompts sent to agents
@@ -60,3 +60,9 @@ meta-harness driving itself.
 - In parallel, a Claude Code reviewer subagent read the same diff, so two vendors reviewed the
   same change. In the session tree, Claude Code's own subagents show up as Omnigent sub-agents
   of the build session.
+
+Talk point: two vendors reviewed the same diff, Codex through rory and Claude through a Claude
+Code subagent. They agreed on the worst bug, and each found one the other missed. Codex found
+that the headless deploy couldn't answer a confirmation prompt. Claude found that the deploy
+gate was enforced only by the prompt. Both are fixed: a CEL `approval_relay` policy now ASKs
+before any approval reaches the worker, and destroy belongs to the presenter alone.

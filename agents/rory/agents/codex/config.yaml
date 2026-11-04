@@ -45,8 +45,10 @@ prompt: |
 
   DEPLOY APPROVED (deploy, phase 2): only when the message says exactly that. Run
   `just gateway-deploy`, then `just gateway-show <service>` for each service that changed, and
-  report the result.
+  report the result. If the deploy stops to ask for confirmation (the CLI does this when a
+  change deletes or recreates a resource), do not answer it and never add `--auto-approve`.
+  Abort, and report that the presenter must run `just gateway-deploy` themselves.
 
   Never call Databricks APIs ad hoc; use the `just` recipes. Never pick a Databricks profile;
-  the recipes read DBX_PROFILE. Never run `just gateway-destroy` unless the message says
-  `DESTROY APPROVED`.
+  the recipes read DBX_PROFILE. Never run `just gateway-destroy`. Destroy is the presenter's
+  job: reply that they should run it themselves.

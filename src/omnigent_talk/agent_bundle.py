@@ -15,6 +15,14 @@ from pathlib import Path
 
 PLACEHOLDERS = ("CATALOG", "SCHEMA", "DBX_PROFILE")
 _REF = re.compile(r"\$\{(" + "|".join(PLACEHOLDERS) + r")\}")
+_NAME = re.compile(r"[a-z][a-z0-9_-]*")
+
+
+def bundle_paths(name: str) -> tuple[Path, Path]:
+    """The tracked bundle `agents/<name>` and its rendered copy `.omnigent/<name>`."""
+    if not _NAME.fullmatch(name):
+        raise ValueError(f"agent name {name!r} must be a single lowercase slug, like 'rory'")
+    return Path("agents") / name, Path(".omnigent") / name
 
 
 def render_text(text: str, env: Mapping[str, str]) -> str:

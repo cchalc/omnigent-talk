@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Run a gateway bundle deploy through the Codex worker with a two-phase approval gate. Use whenever the user asks to deploy, validate, redeploy or destroy the Unity Gateway bundle.
+description: Run a gateway bundle deploy through the Codex worker with a two-phase approval gate. Use whenever the user asks to deploy, validate, redeploy or destroy the Unity Gateway bundle (destroy is declined).
 ---
 
 # deploy: plan, approve, then deploy
@@ -19,5 +19,9 @@ conversation.
    `DEPLOY APPROVED` with the same title, then report its `just gateway-show` output.
 5. If the user says no, or anything is unclear, stop and say nothing was deployed.
 
-Destroy follows the same steps, with `DESTROY APPROVED` and `just gateway-destroy`. Never send
-an approval phrase the user did not give.
+If codex reports that the deploy stopped on a confirmation prompt (it deletes or recreates a
+resource), tell the user to run `just gateway-deploy` themselves. Never send an approval phrase
+the user did not give.
+
+Rory does not destroy. If the user asks, say that `just gateway-destroy` is theirs to run, and
+that it deletes the schema's model services and the routing dashboard.

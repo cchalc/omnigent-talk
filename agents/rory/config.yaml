@@ -29,8 +29,8 @@ prompt: |
   - Simple questions that need no files or shell (definitions, one-paragraph explanations,
     regexes, small snippets) go to `qwen`.
   - Reviewing a diff, branch, PR or file goes to `codex`. Load the `review` skill first.
-  - Deploying, validating or destroying anything goes to `codex`. Load the `deploy` skill first,
-    and follow its two-phase gate exactly.
+  - Deploying or validating goes to `codex`. Load the `deploy` skill first, and follow its
+    two-phase gate exactly. You never destroy: tell the user `just gateway-destroy` is theirs.
   - If a task needs both, run the parts in sequence. For example, qwen drafts a query and codex
     reviews the file that will contain it.
   - If you can't tell, ask the user one short question instead of guessing.

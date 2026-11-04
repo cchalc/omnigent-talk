@@ -62,6 +62,10 @@ def test_deploys_are_two_phase_and_only_through_just_recipes():
     assert "Do NOT deploy" in codex
     for recipe in re.findall(r"`just ([\w-]+)", codex):
         assert recipe in JUST_RECIPES, recipe
+    # Headless, so it must never auto-approve or destroy; both stay with the presenter.
+    assert "never add `--auto-approve`" in codex
+    assert "Never run `just gateway-destroy`" in codex
+    assert "DESTROY APPROVED" not in codex + CONFIG["prompt"]
 
 
 def test_skills_are_named_after_their_directories():
@@ -111,6 +115,16 @@ def test_render_refuses_a_dest_that_overlaps_the_source(tmp_path):
         with pytest.raises(ValueError, match="overlaps"):
             agent_bundle.render(tmp_path, dest, ENV)
     assert (tmp_path / "config.yaml").is_file()
+
+
+@pytest.mark.parametrize("name", ["../agents/rory", "rory/agents", "", "Rory", ".omnigent"])
+def test_bundle_paths_take_only_a_slug(name):
+    with pytest.raises(ValueError):
+        agent_bundle.bundle_paths(name)
+
+
+def test_bundle_paths_for_rory():
+    assert agent_bundle.bundle_paths("rory") == (Path("agents/rory"), Path(".omnigent/rory"))
 
 
 def test_render_rejects_a_directory_without_config(tmp_path):

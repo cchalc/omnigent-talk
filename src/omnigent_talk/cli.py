@@ -145,8 +145,7 @@ def cmd_render_agent(a: argparse.Namespace) -> int:
 
     from omnigent_talk import agent_bundle
 
-    src = Path("agents") / a.name
-    dest = Path(".omnigent") / a.name
+    src, dest = agent_bundle.bundle_paths(a.name)
     rendered = agent_bundle.render(src, dest, os.environ)
     print(f"{src} -> {dest} ({len(rendered)} files rendered)")
     return 0
