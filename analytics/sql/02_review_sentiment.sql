@@ -4,7 +4,7 @@
 -- scored only once it has a row in bakehouse_review_sentiment. Re-run safe: a run after a full
 -- success makes no model calls.
 -- {{sentiment_endpoint}} is a job parameter; see demos/bakehouse/README.md for why it is the
--- Foundation Model API endpoint rather than the Unity Gateway service gemini_general.
+-- system model service system.ai.gemini-3-8-flash rather than the custom service gemini_general.
 
 USE CATALOG IDENTIFIER({{catalog}});
 USE SCHEMA IDENTIFIER({{schema}});
@@ -104,5 +104,14 @@ AS SELECT
   attempted_at
 FROM bakehouse_review_sentiment_attempts
 WHERE NOT is_scored;
+
+ALTER TABLE bakehouse_review_sentiment_errors ALTER COLUMN
+  review_id COMMENT 'Review that failed to score; joins bakehouse_reviews.review_id',
+  franchise_id COMMENT 'Reviewed store; joins bakehouse_franchises.franchise_id',
+  review_date COMMENT 'When the review was posted (UTC)',
+  model_endpoint COMMENT 'Serving endpoint that was called',
+  error_message COMMENT 'ai_query error, or NULL when the call worked but returned no valid label',
+  raw_result COMMENT 'Raw model response, kept to debug an invalid label',
+  attempted_at COMMENT 'When the failed attempt ran';
 
 DROP TABLE IF EXISTS bakehouse_review_sentiment_attempts;

@@ -26,10 +26,10 @@ variables:
       warehouse: Serverless Starter Warehouse
   sentiment_endpoint:
     description: >-
-      Serving endpoint ai_query calls to score reviews. The Unity Gateway service
-      <catalog>.<schema>.gemini_general is the goal, but ai_query through UC Model Services is not
-      enabled on the demo workspace, so the default is the Foundation Model API endpoint.
-    default: databricks-gemini-3-8-flash
+      Model ai_query calls to score reviews. The custom Unity Gateway service
+      <catalog>.<schema>.gemini_general is the goal, but ai_query can't reach custom UC model
+      services on the demo workspace, so the default is the system model service.
+    default: system.ai.gemini-3-8-flash
 
 targets:
   dev:

@@ -51,7 +51,7 @@ only when every review is already scored.
 or the model services, because this bundle doesn't declare the schema. The tables and metric
 views stay too, because the job's SQL created them, not the bundle.
 
-## Sentiment path: Foundation Model API, not the Unity Gateway service
+## Sentiment path: the system model service, not the custom gateway service
 
 The goal was to score reviews through the Unity Gateway service `<catalog>.<schema>.gemini_general`
 with `ai_query`. On the demo workspace that fails at compile time:
@@ -61,13 +61,22 @@ with `ai_query`. On the demo workspace that fails at compile time:
 ```
 
 The same error comes back for the `model-services/<catalog>.<schema>.gemini_general` form (both
-probed 2026-11-03). So the live path is the pay-per-token Foundation Model API endpoint
-`databricks-gemini-3-8-flash`, the same model `gemini_general` routes to. It's called with a JSON
-schema response format, so each answer is one of positive, negative, mixed or neutral. The first
-run scored all 204 reviews with no row errors: 106 positive, 88 negative, 10 mixed.
+probed 2026-11-03). The live path is the system UC model service `system.ai.gemini-3-8-flash`,
+the same model `gemini_general` routes to. A one-review `ai_query` probe against that name
+returned a valid label on 2026-11-04. An earlier probe of the same call ran for more than 6
+minutes and was cancelled, so allow time for the first call. The call uses a JSON schema
+response format, so each answer is one of positive, negative, mixed or neutral.
+
+The 204 existing scores came from the legacy endpoint name `databricks-gemini-3-8-flash`,
+before the switch. They were not re-scored, because the job only scores reviews without a
+successful score. Each row records the endpoint that produced it in `model_endpoint`, so those
+rows still show the legacy name. New or retried reviews record `system.ai.gemini-3-8-flash`.
+The legacy `databricks-gemini-*` names are retired (see `docs/research/facts.md`); don't show
+them on stage. To re-score everything under the system name, delete the rows from
+`bakehouse_review_sentiment` and run `just analytics-run`.
 
 The endpoint is the bundle variable `sentiment_endpoint`, passed to the SQL as a job parameter.
-To switch once ai_query on UC Model Services is enabled:
+To switch to the custom service once ai_query can reach it:
 
 ```bash
 export BUNDLE_VAR_sentiment_endpoint="$CATALOG.$SCHEMA.gemini_general"
@@ -87,9 +96,9 @@ just analytics-run
   `MEASURE(...)` on the same view. Asked "What are the top 5 franchises by revenue?", Genie wrote
   ``MEASURE(`Total Revenue`)`` against `bakehouse_sales_metrics`.
 - **Gemini in SQL:** `bakehouse_review_sentiment` and the *sentiment by city* chart.
-- **Unity Gateway:** don't say the sentiment calls went through Unity Gateway. They went to
-  the Foundation Model API endpoint, so they won't appear under `gemini_general` in the routing
-  dashboard. The gateway story stays with the router and agy demos
+- **Unity Gateway:** don't say the sentiment calls went through the custom service. They go
+  to `system.ai.gemini-3-8-flash`, not `gemini_general`, so they won't appear under
+  `gemini_general` in the routing dashboard. The gateway story stays with the router and agy demos
   (`demos/model-services/README.md`). Where the sentiment calls are recorded hasn't been
   checked.
 

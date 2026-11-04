@@ -61,6 +61,13 @@ def test_bundle_is_isolated_and_uses_variables():
     }
 
 
+def test_sentiment_uses_the_uc_model_service_name_not_the_retired_endpoint():
+    assert BUNDLE["variables"]["sentiment_endpoint"]["default"] == "system.ai.gemini-3-8-flash"
+    # The legacy databricks-gemini-* endpoints are retired (docs/research/facts.md).
+    for path in _analytics_files():
+        assert "databricks-gemini" not in path.read_text(), path
+
+
 def test_no_schema_resource_so_destroy_cannot_drop_the_shared_schema():
     for doc in [BUNDLE, *RESOURCES.values()]:
         assert "schemas" not in (doc.get("resources") or {})
@@ -156,7 +163,11 @@ def test_sentiment_persists_only_successful_valid_labels():
     inserts = [s for s in statements if s.startswith("INSERT INTO bakehouse_review_sentiment ")]
     assert len(inserts) == 1
     assert inserts[0].endswith("FROM bakehouse_review_sentiment_attempts WHERE is_scored")
-    errors = [s for s in statements if "TABLE bakehouse_review_sentiment_errors" in s]
+    errors = [
+        s
+        for s in statements
+        if s.startswith("CREATE OR REPLACE TABLE bakehouse_review_sentiment_errors")
+    ]
     assert len(errors) == 1
     assert errors[0].endswith("WHERE NOT is_scored")
     # The model is called once, into the attempts table, and only for reviews not yet scored.
@@ -173,6 +184,65 @@ def test_sentiment_cleanup_removes_invalid_rows_before_scoring():
     assert delete
     assert "sentiment IS NULL" in delete[1]
     assert f"sentiment NOT {VALID_LABELS}" in delete[1]
+
+
+def _top_level_split(text: str) -> list[str]:
+    items, depth, current = [], 0, ""
+    for char in text:
+        depth += {"(": 1, ")": -1}.get(char, 0)
+        if char == "," and depth == 0:
+            items.append(current)
+            current = ""
+        else:
+            current += char
+    return [*items, current]
+
+
+def _masked_sql(name: str) -> str:
+    """One-line SQL with comments dropped and string literals emptied to '', so commas,
+    semicolons and parentheses inside comment text can't confuse the parsing below."""
+    return " ".join(_sql_code(name).split())
+
+
+def _commented(items: str) -> set[str]:
+    return {item.split()[0] for item in _top_level_split(items) if " COMMENT ''" in item}
+
+
+def _created_tables(sql: str) -> dict[str, tuple[set[str], set[str]]]:
+    """Each table the SQL creates: (its columns, the columns given a comment)."""
+    tables: dict[str, tuple[set[str], set[str]]] = {}
+    for table, body in re.findall(r"CREATE TABLE IF NOT EXISTS (\w+) \((.*?)\) COMMENT ''", sql):
+        columns = {item.split()[0] for item in _top_level_split(body)}
+        tables[table] = (columns, _commented(body))
+    for table, select in re.findall(
+        r"CREATE OR REPLACE TABLE (\w+) COMMENT '' AS SELECT (.*?) FROM ", sql
+    ):
+        columns = {item.split()[-1] for item in _top_level_split(select)}
+        alters = re.findall(rf"ALTER TABLE {table} ALTER COLUMN (.*?);", sql)
+        tables[table] = (columns, set().union(*map(_commented, alters)))
+    return tables
+
+
+@pytest.mark.parametrize("path", SQL_FILES, ids=lambda p: p.name)
+def test_every_created_table_comments_itself_and_all_its_columns(path: Path):
+    sql = _masked_sql(path.name)
+    creates = set(re.findall(r"CREATE (?:OR REPLACE )?TABLE (?:IF NOT EXISTS )?(\w+)", sql))
+    # Both patterns above require a table COMMENT, so a table without one is missing here.
+    tables = _created_tables(sql)
+    assert creates == set(tables), f"no table comment, or a CREATE the test can't parse: {creates}"
+    # A scratch table the same file drops is never seen by Genie or the catalog UI.
+    scratch = set(re.findall(r"DROP TABLE IF EXISTS (\w+)", sql))
+    for table, (columns, commented) in tables.items():
+        if table not in scratch:
+            assert columns == commented, f"{table}: uncommented {columns - commented}"
+
+
+@pytest.mark.parametrize("name", ["bakehouse_sales_metrics", "bakehouse_review_metrics"])
+def test_metric_views_comment_every_dimension_and_measure(name: str):
+    view = _metric_views()[name]["yaml"]
+    assert view["comment"]
+    for item in view["dimensions"] + view["measures"]:
+        assert item.get("comment"), item["name"]
 
 
 def _metric_views() -> dict[str, dict[str, Any]]:
