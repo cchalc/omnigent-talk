@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Literal
 from urllib.parse import quote
 
@@ -60,17 +61,48 @@ def _skill_id(bundle_name: str) -> str:
     return bundle_name.replace("-", "_")
 
 
+def _validated_path_parts(path: str) -> tuple[str, ...]:
+    """Reject paths that could escape or ambiguously address the skill bundle root."""
+    parts = tuple(path.split("/"))
+    if (
+        PurePosixPath(path).is_absolute()
+        or PureWindowsPath(path).is_absolute()
+        or any(part in {"", ".", ".."} for part in parts)
+    ):
+        raise ValueError(f"Unsafe skill bundle path: {path!r}")
+    return parts
+
+
+def _bundle_files(directory: Path) -> tuple[BundleFile, ...]:
+    files: list[BundleFile] = []
+    for root, directory_names, file_names in os.walk(directory, followlinks=False):
+        root_path = Path(root)
+        directory_names[:] = sorted(
+            name
+            for name in directory_names
+            if not name.startswith(".") and not (root_path / name).is_symlink()
+        )
+        for name in sorted(file_names):
+            path = root_path / name
+            if name.startswith(".") or path.is_symlink() or not path.is_file():
+                continue
+            relative_path = path.relative_to(directory).as_posix()
+            _validated_path_parts(relative_path)
+            files.append(BundleFile(relative_path, path.read_bytes()))
+    return tuple(sorted(files, key=lambda file: file.path))
+
+
 def discover_bundles(skills_root: Path) -> list[SkillBundle]:
     """Read each immediate skill directory and hash every file in upload order."""
     bundles: list[SkillBundle] = []
-    for directory in sorted(path for path in skills_root.iterdir() if path.is_dir()):
-        if not (directory / "SKILL.md").is_file():
+    directories = sorted(
+        path for path in skills_root.iterdir() if path.is_dir() and not path.is_symlink()
+    )
+    for directory in directories:
+        manifest = directory / "SKILL.md"
+        if not manifest.is_file() or manifest.is_symlink():
             raise ValueError(f"{directory} has no SKILL.md")
-        files = tuple(
-            BundleFile(path.relative_to(directory).as_posix(), path.read_bytes())
-            for path in sorted(directory.rglob("*"))
-            if path.is_file()
-        )
+        files = _bundle_files(directory)
         digest = hashlib.sha256()
         for file in files:
             path_bytes = file.path.encode()
@@ -185,7 +217,9 @@ class SkillsApi:
         namespace = "/".join(
             quote(part, safe="._-") for part in (self.catalog, self.schema, bundle.skill_id)
         )
-        relative_path = "/".join(quote(part, safe="._-") for part in file.path.split("/"))
+        relative_path = "/".join(
+            quote(part, safe="._-") for part in _validated_path_parts(file.path)
+        )
         self._request(
             "PUT",
             f"{FILES_API}/{namespace}/{relative_path}",

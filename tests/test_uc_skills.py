@@ -3,9 +3,10 @@ import re
 from pathlib import Path
 
 import httpx
+import pytest
 import yaml
 
-from omnigent_talk import uc_skills
+from omnigent_talk import cli, uc_skills
 
 SKILLS_ROOT = Path("skills")
 AGENT_SKILL_NAME = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
@@ -58,6 +59,38 @@ def _api(handler: httpx.MockTransport) -> uc_skills.SkillsApi:
         lambda: {"Authorization": "Bearer test"},
         httpx.Client(transport=handler),
     )
+
+
+def test_discovery_skips_dotfiles_dot_directories_and_symlinks(tmp_path):
+    root, _ = _one_bundle(tmp_path)
+    directory = root / "sample-skill"
+    (directory / ".DS_Store").write_bytes(b"metadata")
+    hidden = directory / ".cache"
+    hidden.mkdir()
+    (hidden / "state").write_text("ignored")
+    target_file = tmp_path / "outside.md"
+    target_file.write_text("outside")
+    (directory / "linked.md").symlink_to(target_file)
+    target_directory = tmp_path / "outside-directory"
+    target_directory.mkdir()
+    (target_directory / "reference.md").write_text("outside")
+    (directory / "linked-directory").symlink_to(target_directory, target_is_directory=True)
+
+    (bundle,) = uc_skills.discover_bundles(root)
+
+    assert [file.path for file in bundle.files] == ["SKILL.md"]
+
+
+@pytest.mark.parametrize("path", ["", "/absolute", "C:\\absolute", "../escape", "a/../b", "a//b"])
+def test_upload_rejects_unsafe_bundle_paths(path):
+    def handle(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    api = _api(httpx.MockTransport(handle))
+    bundle = uc_skills.SkillBundle("sample-skill", "sample_skill", (), "digest")
+
+    with pytest.raises(ValueError, match="Unsafe skill bundle path"):
+        api._upload(bundle, uc_skills.BundleFile(path, b"content"))
 
 
 def test_sync_create_upload_finalize_sequence(tmp_path):
@@ -170,3 +203,46 @@ def test_dry_run_makes_no_writes(tmp_path):
 
     assert [result.status for result in results] == ["created"]
     assert [request.method for request in seen] == ["GET"]
+
+
+class _FakeClient:
+    def close(self) -> None:
+        pass
+
+
+class _ListApi:
+    client = _FakeClient()
+
+    def list_skills(self) -> list[dict[str, str]]:
+        return [
+            {
+                "name": "skills/test_catalog.omnigent_talk.bakehouse_analyst",
+                "finalize_time": "2026-11-03T00:00:00Z",
+            }
+        ]
+
+
+def test_skills_list_is_stage_safe_unless_full_is_requested(monkeypatch, capsys):
+    monkeypatch.setattr(uc_skills, "connect", _ListApi)
+
+    assert cli.main(["skills", "list"]) == 0
+    assert capsys.readouterr().out == "bakehouse_analyst: finalized\n"
+
+    assert cli.main(["skills", "list", "--full"]) == 0
+    assert capsys.readouterr().out == "test_catalog.omnigent_talk.bakehouse_analyst: finalized\n"
+
+
+class _BrokenSyncApi:
+    client = _FakeClient()
+
+    def sync(self, skills_root: Path, *, dry_run: bool = False) -> list[uc_skills.SyncResult]:
+        raise uc_skills.SkillsApiError("preview unavailable")
+
+
+def test_skills_sync_api_error_is_one_line_without_traceback(monkeypatch, capsys):
+    monkeypatch.setattr(uc_skills, "connect", _BrokenSyncApi)
+
+    assert cli.main(["skills", "sync"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "skills sync failed: preview unavailable\n"

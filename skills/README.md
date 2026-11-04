@@ -17,3 +17,8 @@ The sync stores a bundle digest in each skill's comment. Matching finalized bund
 as unchanged; changed bundles upload every file, finalize again, and record the new digest with an
 etag-guarded metadata update. UC Skills have no version number, and there is currently no DAB or
 Terraform resource for them.
+
+`unchanged` means the current local bundle digest matches the digest last stored in the skill's
+comment; the sync does not download and compare remote files. This sync never sends deletes, so a
+file deleted locally remains in the remote skill even after the remaining files are uploaded and
+finalized again.
