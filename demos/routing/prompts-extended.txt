@@ -1,0 +1,37 @@
+# Extended corpus for `just traffic`: 12 SQL, 12 code (mixed languages), 12 general.
+Write a SQL query that counts orders per month for the last 12 months.
+Show me how to deduplicate rows in a table by keeping the latest updated_at per id.
+Write a query that finds users who logged in on three consecutive days.
+Convert this query to use a CTE: SELECT * FROM (SELECT id, sum(x) s FROM t GROUP BY id) WHERE s > 10
+Write a SQL statement that creates a Delta table partitioned by event_date.
+What does COALESCE do in SQL, and when would I use NULLIF instead?
+Write a query that computes a 7-day rolling average of daily sales per store.
+Why is my SELECT with a GROUP BY failing with "column must appear in the GROUP BY clause"?
+Write a MERGE statement that upserts rows from a staging table into a target table by order_id.
+Give me a SQL query that lists tables with no rows in a schema.
+Rewrite this with a LATERAL VIEW explode: SELECT id, tag FROM t, unnest(tags) AS tag
+Write a query returning the median delivery time per region using percentile_approx.
+Write a bash function that retries a command up to five times with exponential backoff.
+Fix this Go code so the goroutine does not leak: go func() { for { ch <- compute() } }()
+Write a TypeScript type that makes every property of an object optional and nullable.
+Write a Rust function that reverses the words in a string without allocating a new String per word.
+Explain what this Python decorator does: def retry(f): return lambda *a, **k: f(*a, **k)
+Write a Java method that returns true if a string is a palindrome, ignoring case and spaces.
+Write a unit test in pytest for a function that parses a comma-separated list of integers.
+Fix this C# LINQ query so it does not load the whole table: db.Orders.ToList().Where(o => o.Total > 100)
+Write a Kotlin data class for a shopping cart line item with a computed subtotal.
+Write an R function that returns the rows of a data frame where a column is within two standard deviations of its mean.
+Write a Scala case class and a method that groups a list of events by day.
+Write a JavaScript debounce function that returns a promise with the last result.
+Draft a three-sentence status update for a team that shipped a feature a day late.
+Give me five questions to ask a customer before scoping a data migration.
+What is the difference between a service-level objective and a service-level agreement?
+Write a short, friendly reply declining a meeting invitation for a conflicting appointment.
+What are the main trade-offs between a monolith and microservices for a five-person team?
+Give me a checklist for reviewing a pull request that changes database migrations.
+Explain eventual consistency to a non-technical manager in three sentences.
+How should I prioritize a backlog when every item is marked urgent?
+What are good icebreaker questions for a remote team kickoff meeting?
+Write a two-sentence summary of why feature flags help with safe releases.
+Draft a polite follow-up email asking for feedback on a proposal sent last week.
+List three ways to reduce cloud spend on a nightly batch job without changing its output.
