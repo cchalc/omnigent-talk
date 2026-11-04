@@ -119,7 +119,7 @@ def _required_env() -> tuple[str, str, str]:
 
 def _configure_mlflow() -> tuple[Any, str, str]:
     profile, experiment_name, model = _required_env()
-    import mlflow
+    import mlflow  # pyright: ignore[reportMissingImports]
 
     mlflow.set_tracking_uri(f"databricks://{profile}")
     experiment = mlflow.set_experiment(experiment_name)
@@ -136,7 +136,7 @@ def _dataset_name(behavior: str, *, smoke: bool) -> str:
 
 
 def _make_judge(behavior: str, model: str) -> Any:
-    from mlflow.genai.judges import make_judge
+    from mlflow.genai.judges import make_judge  # pyright: ignore[reportMissingImports]
 
     return make_judge(
         name=_scorer_name(behavior),
@@ -158,7 +158,7 @@ Do not return pass/fail or any other label.
 def setup() -> None:
     """Create managed datasets and register project behavior scorers."""
     _, experiment_id, model = _configure_mlflow()
-    from mlflow.genai.datasets import create_dataset, get_dataset
+    from mlflow.genai.datasets import create_dataset, get_dataset  # pyright: ignore[reportMissingImports]
 
     for behavior in BEHAVIORS:
         _make_judge(behavior, model).register(experiment_id=experiment_id)
@@ -176,8 +176,8 @@ def setup() -> None:
 def evaluate(*, smoke: bool) -> None:
     """Evaluate precomputed synthetic trajectories with registered MLflow judges."""
     mlflow, experiment_id, _ = _configure_mlflow()
-    from mlflow.genai.datasets import get_dataset
-    from mlflow.genai.scorers import get_scorer
+    from mlflow.genai.datasets import get_dataset  # pyright: ignore[reportMissingImports]
+    from mlflow.genai.scorers import get_scorer  # pyright: ignore[reportMissingImports]
 
     for behavior in BEHAVIORS:
         name = _dataset_name(behavior, smoke=smoke)
