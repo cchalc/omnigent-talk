@@ -131,9 +131,11 @@ LANGUAGE YAML
 AS $$
 version: 1.1
 comment: >-
-  Bakehouse review KPIs over bakehouse_review_sentiment (Gemini-scored), sliceable by store,
-  city, sentiment and day.
+  Bakehouse review KPIs over the successfully scored reviews in bakehouse_review_sentiment
+  (Gemini), sliceable by store, city, sentiment and day.
 source: bakehouse_review_sentiment
+# The build job only stores valid labels. This filter keeps any other row out of every measure.
+filter: source.sentiment IN ('positive', 'negative', 'neutral', 'mixed')
 joins:
   - name: dim_franchise
     source: bakehouse_franchises
@@ -162,7 +164,7 @@ dimensions:
 measures:
   - name: Review Count
     expr: COUNT(1)
-    comment: Number of reviews
+    comment: Number of reviews Gemini scored successfully
     synonyms: [reviews, number of reviews]
   - name: Avg Review Length
     expr: AVG(source.review_length)
@@ -180,6 +182,10 @@ measures:
     expr: "COUNT(1) FILTER (WHERE source.sentiment = 'mixed')"
     comment: Reviews Gemini scored mixed
     synonyms: [mixed count]
+  - name: Neutral Reviews
+    expr: "COUNT(1) FILTER (WHERE source.sentiment = 'neutral')"
+    comment: Reviews Gemini scored neutral
+    synonyms: [neutral count]
   - name: Positive Share
     expr: "MEASURE(`Positive Reviews`) / MEASURE(`Review Count`)"
     comment: Fraction of reviews scored positive (0 to 1)

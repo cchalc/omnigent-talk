@@ -18,9 +18,10 @@ All objects land in `<catalog>.<schema>`, the schema the gateway bundle owns (de
 | `bakehouse_franchises` | job, `sql/01_copy_tables.sql` | 48 stores. 21 point at a supplier that isn't in the sample |
 | `bakehouse_suppliers` | job, `sql/01_copy_tables.sql` | 27 suppliers, one ingredient each |
 | `bakehouse_reviews` | job, `sql/01_copy_tables.sql` | 204 reviews |
-| `bakehouse_review_sentiment` | job, `sql/02_review_sentiment.sql` | 204 Gemini scores (sentiment and a one-line summary) |
+| `bakehouse_review_sentiment` | job, `sql/02_review_sentiment.sql` | Successful Gemini scores only: one row per review with a valid label (positive, negative, mixed, neutral) and a one-line summary |
+| `bakehouse_review_sentiment_errors` | job, `sql/02_review_sentiment.sql` | Reviews whose latest scoring call failed or returned no valid label. Empty after a clean run |
 | `bakehouse_sales_metrics` | job, `sql/03_metric_views.sql` | Metric view: Total Revenue, Units Sold, Transaction Count, Unique Customers, Average Transaction Value, Avg Units per Transaction, Revenue per Customer, by day/month, product, payment method, franchise name/city/country/size, customer country/continent, supplier name/ingredient (`Unknown` when the supplier is missing) |
-| `bakehouse_review_metrics` | job, `sql/03_metric_views.sql` | Metric view: Review Count, Avg Review Length, Positive/Negative/Mixed Reviews, Positive Share, by franchise, city, country, sentiment and day |
+| `bakehouse_review_metrics` | job, `sql/03_metric_views.sql` | Metric view over successfully scored reviews only: Review Count, Avg Review Length, Positive/Negative/Mixed/Neutral Reviews, Positive Share, by franchise, city, country, sentiment and day |
 | *omnigent-talk: Bakehouse sales and sentiment* | bundle dashboard | KPIs, daily revenue, product mix, top 10 franchises, payment mix, sentiment by city |
 | *omnigent-talk: Bakehouse analyst* | bundle Genie space | The 2 metric views and 6 tables, 10 sample questions, 1 instruction, 2 example SQLs |
 | *omnigent-talk: bakehouse build* | bundle job | The three SQL files above, in order, on the Serverless Starter Warehouse |
@@ -40,8 +41,11 @@ On a clean schema, run `analytics-deploy` and then `analytics-run`. The dashboar
 agent deploy before their tables exist and show data once the job has run. To redeploy after a
 change, repeat `analytics-deploy` (it reports `0 changed` when nothing changed), and re-run the
 job if you changed any SQL. The job is re-run safe: copies and metric views are
-`CREATE OR REPLACE`, and sentiment only scores reviews that have no score yet, so a second run
-makes no model calls.
+`CREATE OR REPLACE`, and sentiment only calls the model for reviews without a successful score.
+Reviews already scored are never sent again. Failed calls and invalid labels never reach
+`bakehouse_review_sentiment` or the metrics. They are listed in
+`bakehouse_review_sentiment_errors` and retried on the next run. A re-run makes no model calls
+only when every review is already scored.
 
 `just analytics-destroy` removes the job, dashboard and Genie agent. It can't drop the schema
 or the model services, because this bundle doesn't declare the schema. The tables and metric

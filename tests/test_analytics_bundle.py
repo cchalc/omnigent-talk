@@ -111,12 +111,68 @@ def test_job_runs_every_sql_file_in_order_on_the_warehouse():
     assert defaults["schema"] == "${var.schema}"
 
 
-def test_copies_drop_pii_columns():
-    sql = (ANALYTICS / "sql" / "01_copy_tables.sql").read_text()
-    selects = re.findall(r"AS SELECT(.*?)FROM samples", sql, re.S)
-    selected = " ".join(selects)
-    for column in ("cardNumber", "first_name", "last_name", "email", "phone", "address", "postal"):
-        assert column not in selected, column
+PII_COLUMNS = (
+    "cardNumber",
+    "first_name",
+    "last_name",
+    "email_address",
+    "phone_number",
+    "address",
+    "postal_zip_code",
+)
+VALID_LABELS = "IN ('positive', 'negative', 'neutral', 'mixed')"
+
+
+def _sql_code(name: str) -> str:
+    """The SQL with comments and string literals removed, so only code is left."""
+    sql = (ANALYTICS / "sql" / name).read_text()
+    sql = re.sub(r"--[^\n]*", "", sql)
+    return re.sub(r"'[^']*'", "''", sql)
+
+
+def _statements(name: str) -> list[str]:
+    return [" ".join(s.split()) for s in _sql_code(name).split(";") if s.strip()]
+
+
+def test_copies_select_named_columns_and_no_pii():
+    code = _sql_code("01_copy_tables.sql")
+    # A star could carry any PII column, so every copy names its columns.
+    assert "*" not in code
+    for column in PII_COLUMNS:
+        assert not re.search(rf"\b{column}\b", code, re.I), column
+    copies = re.findall(r"CREATE OR REPLACE TABLE (\w+)", code)
+    assert len(copies) == len(re.findall(r"FROM samples\.bakehouse\.\w+", code)) == 5
+
+
+def test_sentiment_persists_only_successful_valid_labels():
+    statements = _statements("02_review_sentiment.sql")
+    raw = (ANALYTICS / "sql" / "02_review_sentiment.sql").read_text()
+    # The success flag needs no ai_query error and one of the four labels.
+    assert re.search(
+        r"coalesce\(error_message IS NULL AND sentiment IN \('positive', 'negative', 'neutral', "
+        r"'mixed'\), false\)\s+AS is_scored",
+        raw,
+    )
+    inserts = [s for s in statements if s.startswith("INSERT INTO bakehouse_review_sentiment ")]
+    assert len(inserts) == 1
+    assert inserts[0].endswith("FROM bakehouse_review_sentiment_attempts WHERE is_scored")
+    errors = [s for s in statements if "TABLE bakehouse_review_sentiment_errors" in s]
+    assert len(errors) == 1
+    assert errors[0].endswith("WHERE NOT is_scored")
+    # The model is called once, into the attempts table, and only for reviews not yet scored.
+    calls = [s for s in statements if "ai_query" in s]
+    assert len(calls) == 1
+    assert calls[0].startswith("CREATE OR REPLACE TABLE bakehouse_review_sentiment_attempts")
+    assert "LEFT ANTI JOIN bakehouse_review_sentiment s" in calls[0]
+    assert statements[-1] == "DROP TABLE IF EXISTS bakehouse_review_sentiment_attempts"
+
+
+def test_sentiment_cleanup_removes_invalid_rows_before_scoring():
+    raw = " ".join((ANALYTICS / "sql" / "02_review_sentiment.sql").read_text().split())
+    delete = re.search(r"DELETE FROM bakehouse_review_sentiment WHERE (.*?);", raw)
+    assert delete
+    assert "sentiment IS NULL" in delete[1]
+    assert f"sentiment NOT {VALID_LABELS}" in delete[1]
 
 
 def _metric_views() -> dict[str, dict[str, Any]]:
@@ -166,7 +222,10 @@ def test_metric_views_define_the_contracted_measures_and_dimensions():
         "Positive Reviews",
         "Negative Reviews",
         "Mixed Reviews",
+        "Neutral Reviews",
     }
+    # Only valid labels count, even if a bad row ever reaches the table.
+    assert reviews["filter"] == f"source.sentiment {VALID_LABELS}"
     assert {d["name"] for d in reviews["dimensions"]} >= {
         "Franchise Name",
         "Franchise City",
