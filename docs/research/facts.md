@@ -46,6 +46,30 @@ Verified 2026-11-02 unless noted. `DBX` = `https://docs.databricks.com`.
 | Sandbox on GCP | GCP page returns 404 | DBX/gcp/en/compute/serverless/sandbox | verified: not on GCP (2026-11-02) |
 | Sandbox SDK | `w.sandbox.create_sandbox(sandbox_id=...)`, `w.sandbox.execute_command_sync(args=["-c", ...], execution_timeout=Duration(seconds=30))`, `resp.exit_code`, `resp.stdout`, `w.sandbox.delete_sandbox("sandboxes/<id>")`. CLI: `databricks sandbox create / register / ssh`. Agent Bricks: `agentbricks tools add sandbox --scope table:...` | DBX/aws/en/compute/serverless/sandbox-quickstart | verified (exact signatures OPEN) |
 
+## Bakehouse analytics demo
+
+Researched 2026-11-03/04 by sub-agents; *(paraphrase)* rows need a word-for-word check before they go on a slide.
+
+| Claim | Quote / detail | URL | Status |
+|---|---|---|---|
+| Unity Catalog skills (Beta) | A skill is a UC object `catalog.schema.skill` built from a SKILL.md folder. Create (`POST /api/2.1/unity-catalog/skills?parent=schemas/<c>.<s>&skill_id=<id>`), upload files to `/api/2.0/fs/files/Skills/<c>/<s>/<skill>/`, then `finalize`. No version numbers; re-upload and finalize *(paraphrase)* | DBX/aws/en/ai-gateway/skill-reference | paraphrase; live sync of 3 skills worked on fevm-cjc 2026-11-03 |
+| Skills have no IaC resource | "Skills don't have Terraform or Declarative Automation Bundles resources" *(paraphrase)*. Hence `just skills-sync` | DBX/aws/en/ai-gateway/govern-skills | paraphrase |
+| Typed skills CLI needs v1.20 | `databricks ai-gateway create-skill` etc. need CLI ≥ 1.20; the demo machine has 1.17, so the sync uses REST | `databricks ai-gateway --help` (v1.17.0) | verified locally 2026-11-03 |
+| Skill grants | Skills use volume privileges: `READ VOLUME` to consume, `CREATE VOLUME` + `WRITE VOLUME` to author *(paraphrase)* | DBX/aws/en/ai-gateway/govern-skills | paraphrase |
+| Agents that load UC skills | Claude Code, Codex, Cursor (MCP only), Copilot, Gemini CLI, OpenCode, Pi. Antigravity is not listed *(paraphrase)* | DBX/aws/en/ai-gateway/coding-agent-supported-agents | paraphrase. Don't claim agy loads UC skills natively; the demo gives agy the same skills from the repo |
+| Genie agents as code | `genie_spaces` is a bundle resource (direct engine); `serialized_space` inline or `file_path`. `databricks bundle generate genie-space` exports one *(paraphrase)* | DBX/aws/en/dev-tools/bundles/resources | paraphrase; deployed via `just analytics-deploy` 2026-11-03 |
+| Metric views | No bundle resource; created with `CREATE OR REPLACE VIEW … WITH METRICS LANGUAGE YAML` from a bundle SQL task *(paraphrase)* | DBX/aws/en/metric-views/create | paraphrase; two metric views built 2026-11-03 |
+| `ai_query` can't call custom model services | `ai_query` on a user-created UC model service fails (`AI_FUNCTION_COMPILATION_ERROR` / "not enabled"); Databricks-provided services work | DBX/gcp/en/ai-gateway/query-model-services | verified (URL 200, live probe 2026-11-03). So batch sentiment calls Gemini 3.8 Flash directly, not `gemini_router` |
+| Router verification | `gemini_router` 10 calls: 7 Gemini 3.8 Flash / 3 Gemini 3.7 Flash (configured 80/20, fallback 3.5 Flash). `gemini_fast` 9/9, `gemini_general` 3/3, `qwen_code` 6/6 | `just split-demo 10`, `just probe`, fevm-cjc 2026-11-03; `demos/observability/README.md` | verified |
+| Request tags | Header `Databricks-Ai-Gateway-Request-Tags: {json}` lands in `request_tags` in `system.ai_gateway.usage` and inference tables *(paraphrase)* | DBX/aws/en/ai-gateway/request-tagging | paraphrase; usage rows lag up to about an hour |
+| Fallback in usage | A fallback is one usage row with `size(routing_information.attempts) > 1` (`INITIAL_ATTEMPT` then `FALLBACK`) | live `system.ai_gateway.usage`, 2026-11-04 | verified |
+| Lineage entity types | Job-written tables show `entity_type = JOB`, dashboards `DASHBOARD_V3`; Genie shows through `entity_metadata.genie_space_id`, not an entity type | DBX/aws/en/admin/system-tables/lineage; live `system.access.table_lineage` 2026-11-04 | verified live (no `GENIE` entity type seen) |
+| Bakehouse lineage | samples.bakehouse → `bakehouse_*` tables → metric views, attributed to the build job | live UC lineage, 2026-11-03 | verified. Dashboard and Genie edges not yet seen; check before claiming |
+| Model service lineage | Foundation model (primary / fallback) → service → inference table *(paraphrase)* | DBX/aws/en/data-governance/unity-catalog/ai-gateway-service-lineage | paraphrase; needs an inference table attached |
+| Custom-agent traces (Beta) | Agents can send OTLP spans to `<ws>/ai-gateway/otel/v1/traces`; `traceparent` joins gateway spans. Separate per-workspace Beta *(paraphrase)* | DBX/aws/en/ai-gateway/unified-trace-table | paraphrase; not set up |
+| Bakehouse data | 6 tables: transactions 3,333, customers 300, franchises 48, suppliers 27, reviews 204, review chunks 196. May 2024. Revenue $66,471; avg transaction ≈ $19.94. Gemini sentiment: 106 positive / 88 negative / 10 mixed | `samples.bakehouse`, profiled 2026-11-03 | verified |
+| Legacy Gemini endpoint name | `ai_query('databricks-gemini-3-8-flash', …)` worked in SQL on fevm-cjc 2026-11-03, but REST returns 403 (row above). Show `system.ai.gemini-3-8-flash` only | live probe 2026-11-03 | OPEN: keep the legacy name off slides |
+
 ## Omnigent
 
 | Claim | Quote / detail | URL | Status |
@@ -66,6 +90,11 @@ Verified 2026-11-02 unless noted. `DBX` = `https://docs.databricks.com`.
 | Agent YAML | `name`, `prompt`, `executor.{harness, model, auth}`, `policies`; no `extends` | https://github.com/omnigent-ai/omnigent/blob/main/docs/AGENT_YAML_SPEC.md | verified; `executor.harness` vs local parser OPEN |
 | Latest release | v0.20.0 (2026-10-28) | https://github.com/omnigent-ai/omnigent/releases | verified |
 | Full scope | Polly / Debby bundled agents, scheduled tasks, inbox / async calls, browser tools, skills, Slack (`omni integration slack`), cloud sandboxes (`omni sandbox`: modal / daytona / islo), REST API, macOS app, mobile | https://github.com/omnigent-ai/omnigent ; https://omnigent.ai/ ; `omni --help` | verified |
+| Agent bundle | A directory with `config.yaml`, `skills/<s>/SKILL.md`, `tools/mcp/*.yaml`; `omni run <dir>` runs it | local package `omnigent/spec/parser.py`, `spec/types.py` (0.22.0.dev0) | verified from source |
+| Native harness is fixed per spec | `omni run AGENT --harness <x>-native` is rejected because native TUIs ignore the spec, so switching = one spec per harness | local `omnigent/cli.py` | verified from source |
+| Skill discovery per harness | Claude: bundle + `.claude/skills` + `.agents/skills`; Codex: bundle + `$CODEX_HOME/skills` + `~/.agents/skills`; agy: workspace `.agents/skills`; pi: `--skill` | local omnigent harness sources | verified from source |
+| agy default model gotcha | With no model set, agy picks Gemini 3.1 Pro, which FEVM doesn't serve; the turn ends empty. Fix: pin `gemini-3.8-flash`, or `/model` first | local `harnesses/antigravity_native/credentials.py`; runner logs 2026-11-03 | verified. Keep `/model` in the runbook |
+| pi + Gemini tool-schema bug | pi's schema cleanup passes `type: [X, "null"]` through and Gemini rejects it (400) | local `inner/pi_executor.py` (0.22.0.dev0); repro 2026-11-03 | verified. Run pi on Claude, Gemini on agy |
 
 ## Agent behavior
 

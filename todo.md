@@ -28,6 +28,17 @@ Status 2026-11-03: on FEVM (`fevm-cjc`), `GET /api/ai-gateway/v2/coding-agent-co
 - [ ] Add a row to `docs/research/facts.md` for each claim used on a slide.
 - [ ] Add the steps to `docs/setup-log.md` and record a fallback clip in `talk/fallbacks/`.
 
+## Bakehouse demo (2026-11-04)
+
+Runbook: `talk/bakehouse-demo-runbook.md`.
+
+- [ ] Merge PRs: skills (#1) → agents (#3) → analytics (#4) and observability (#2)
+- [ ] Apply `just agents-print-config` output yourself (gemini-shim provider; agy settings `model`)
+- [ ] `just skills-grant <principal>` for the audience or demo group
+- [ ] Govern → Traces (Beta): pick the trace table, grant `SELECT`
+- [ ] Day-before: run all four agents once; open both dashboards; check dashboard/Genie lineage
+- [ ] Follow-ups: cost.sql harness key for Codex/pi; skills errors show the catalog; tracebacks on network errors
+
 ## Already in flight
 - [x] Round 1 harness traffic matrix: only agy (`ai_gateway.usage`) and pi (`serving.endpoint_usage`) landed on FEVM.
 - [x] Fix: `databricks-fevm` is now the default for `anthropic` + `pi` in `~/.omnigent-fevm`. claude-sdk and native Claude replied on round 2.
