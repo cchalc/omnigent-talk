@@ -1,0 +1,771 @@
+{
+  "datasets": [
+    {
+      "name": "ds_kpis",
+      "displayName": "Sales KPIs",
+      "queryLines": [
+        "SELECT\n",
+        "  MEASURE(`Total Revenue`) AS total_revenue,\n",
+        "  MEASURE(`Transaction Count`) AS transactions,\n",
+        "  MEASURE(`Average Transaction Value`) AS avg_transaction_value,\n",
+        "  MEASURE(`Unique Customers`) AS unique_customers\n",
+        "FROM bakehouse_sales_metrics\n"
+      ]
+    },
+    {
+      "name": "ds_daily",
+      "displayName": "Daily sales",
+      "queryLines": [
+        "SELECT\n",
+        "  `Sales Day` AS sales_day,\n",
+        "  MEASURE(`Total Revenue`) AS revenue,\n",
+        "  MEASURE(`Units Sold`) AS units_sold,\n",
+        "  MEASURE(`Transaction Count`) AS transactions\n",
+        "FROM bakehouse_sales_metrics\n",
+        "GROUP BY ALL\n",
+        "ORDER BY sales_day\n"
+      ]
+    },
+    {
+      "name": "ds_franchises",
+      "displayName": "Top franchises",
+      "queryLines": [
+        "SELECT\n",
+        "  concat(`Franchise Name`, ' (', `Franchise City`, ')') AS franchise,\n",
+        "  `Franchise Size` AS franchise_size,\n",
+        "  MEASURE(`Total Revenue`) AS revenue\n",
+        "FROM bakehouse_sales_metrics\n",
+        "GROUP BY ALL\n",
+        "ORDER BY revenue DESC\n",
+        "LIMIT 10\n"
+      ]
+    },
+    {
+      "name": "ds_products",
+      "displayName": "Product mix",
+      "queryLines": [
+        "SELECT\n",
+        "  `Product` AS product,\n",
+        "  MEASURE(`Total Revenue`) AS revenue,\n",
+        "  MEASURE(`Units Sold`) AS units_sold\n",
+        "FROM bakehouse_sales_metrics\n",
+        "GROUP BY ALL\n",
+        "ORDER BY revenue DESC\n"
+      ]
+    },
+    {
+      "name": "ds_payments",
+      "displayName": "Payment mix",
+      "queryLines": [
+        "SELECT\n",
+        "  `Payment Method` AS payment_method,\n",
+        "  MEASURE(`Total Revenue`) AS revenue,\n",
+        "  MEASURE(`Transaction Count`) AS transactions\n",
+        "FROM bakehouse_sales_metrics\n",
+        "GROUP BY ALL\n"
+      ]
+    },
+    {
+      "name": "ds_sentiment",
+      "displayName": "Review sentiment by city",
+      "queryLines": [
+        "WITH by_city AS (\n",
+        "  SELECT\n",
+        "    `Franchise City` AS city,\n",
+        "    `Sentiment` AS sentiment,\n",
+        "    MEASURE(`Review Count`) AS reviews\n",
+        "  FROM bakehouse_review_metrics\n",
+        "  GROUP BY ALL\n",
+        "),\n",
+        "top_cities AS (\n",
+        "  SELECT city FROM by_city GROUP BY city ORDER BY SUM(reviews) DESC, city LIMIT 10\n",
+        ")\n",
+        "SELECT b.city, b.sentiment, b.reviews\n",
+        "FROM by_city b JOIN top_cities t ON b.city = t.city\n",
+        "ORDER BY b.city, b.sentiment\n"
+      ]
+    },
+    {
+      "name": "ds_review_kpis",
+      "displayName": "Review KPIs",
+      "queryLines": [
+        "SELECT\n",
+        "  MEASURE(`Review Count`) AS reviews,\n",
+        "  MEASURE(`Positive Share`) AS positive_share\n",
+        "FROM bakehouse_review_metrics\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "bakehouse",
+      "displayName": "Bakehouse",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Bakehouse: sales and review sentiment\n",
+                "\n",
+                "Built from PII-free copies of `samples.bakehouse` and two governed **metric views**: `bakehouse_sales_metrics` and `bakehouse_review_metrics`. Review sentiment was scored once per review by **Gemini** through `ai_query`. The *omnigent-talk: Bakehouse analyst* Genie agent answers questions over the same metrics."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-revenue",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis",
+                  "fields": [
+                    {
+                      "name": "total_revenue",
+                      "expression": "`total_revenue`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "total_revenue",
+                  "displayName": "Total Revenue",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Total Revenue"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-transactions",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis",
+                  "fields": [
+                    {
+                      "name": "transactions",
+                      "expression": "`transactions`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "transactions",
+                  "displayName": "Transactions"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Transactions"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-atv",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis",
+                  "fields": [
+                    {
+                      "name": "avg_transaction_value",
+                      "expression": "`avg_transaction_value`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_transaction_value",
+                  "displayName": "Avg Transaction Value",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Avg Transaction Value"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-customers",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis",
+                  "fields": [
+                    {
+                      "name": "unique_customers",
+                      "expression": "`unique_customers`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "unique_customers",
+                  "displayName": "Unique Customers"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Unique Customers"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 2,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "revenue-trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_daily",
+                  "fields": [
+                    {
+                      "name": "sales_day",
+                      "expression": "`sales_day`"
+                    },
+                    {
+                      "name": "revenue",
+                      "expression": "`revenue`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "sales_day",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Day"
+                },
+                "y": {
+                  "fieldName": "revenue",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Revenue",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Daily revenue"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 8,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "product-mix",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_products",
+                  "fields": [
+                    {
+                      "name": "product",
+                      "expression": "`product`"
+                    },
+                    {
+                      "name": "revenue",
+                      "expression": "`revenue`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "revenue",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Revenue",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "product",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "Product"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Product mix (revenue)"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 5,
+            "width": 4,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "top-franchises",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_franchises",
+                  "fields": [
+                    {
+                      "name": "franchise",
+                      "expression": "`franchise`"
+                    },
+                    {
+                      "name": "revenue",
+                      "expression": "`revenue`"
+                    },
+                    {
+                      "name": "franchise_size",
+                      "expression": "`franchise_size`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "revenue",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Revenue",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "franchise",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  },
+                  "displayName": "Franchise"
+                },
+                "color": {
+                  "fieldName": "franchise_size",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Store size"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Top 10 franchises by revenue"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 7,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "payment-mix",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_payments",
+                  "fields": [
+                    {
+                      "name": "payment_method",
+                      "expression": "`payment_method`"
+                    },
+                    {
+                      "name": "revenue",
+                      "expression": "`revenue`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "revenue",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Revenue"
+                },
+                "color": {
+                  "fieldName": "payment_method",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Payment method"
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Payment mix (revenue)"
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 11,
+            "width": 5,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-reviews",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_review_kpis",
+                  "fields": [
+                    {
+                      "name": "reviews",
+                      "expression": "`reviews`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "reviews",
+                  "displayName": "Reviews scored"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Reviews scored"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-positive",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_review_kpis",
+                  "fields": [
+                    {
+                      "name": "positive_share",
+                      "expression": "`positive_share`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "positive_share",
+                  "displayName": "Positive share",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Positive share"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 17,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "sentiment-by-city",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_sentiment",
+                  "fields": [
+                    {
+                      "name": "city",
+                      "expression": "`city`"
+                    },
+                    {
+                      "name": "reviews",
+                      "expression": "`reviews`"
+                    },
+                    {
+                      "name": "sentiment",
+                      "expression": "`sentiment`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "city",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "City"
+                },
+                "y": {
+                  "fieldName": "reviews",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Reviews"
+                },
+                "color": {
+                  "fieldName": "sentiment",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "positive",
+                        "color": "#2A9D8F"
+                      },
+                      {
+                        "value": "negative",
+                        "color": "#E76F51"
+                      },
+                      {
+                        "value": "mixed",
+                        "color": "#E9C46A"
+                      },
+                      {
+                        "value": "neutral",
+                        "color": "#8D99AE"
+                      }
+                    ]
+                  },
+                  "displayName": "Sentiment"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Review sentiment by city (top 10 cities by reviews)"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 12,
+            "height": 6
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#FCFAF7",
+        "dark": "#1F1B18"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#14110F"
+      },
+      "widgetBorderColor": {
+        "light": "#FFFFFF",
+        "dark": "#14110F"
+      },
+      "fontColor": {
+        "light": "#2B2118",
+        "dark": "#F1E9E0"
+      },
+      "selectionColor": {
+        "light": "#2272B4",
+        "dark": "#8ACAFF"
+      },
+      "visualizationColors": [
+        "#8C5A3C",
+        "#D4A373",
+        "#2A9D8F",
+        "#E76F51",
+        "#E9C46A",
+        "#264653",
+        "#B5838D"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}
