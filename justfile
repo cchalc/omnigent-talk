@@ -52,15 +52,29 @@ check: lint test
 
 # Validate the bundle against the workspace
 gateway-validate:
-    {{bundle}} validate
+    {{bundle}} validate --strict --target dev
 
 # Create or update the schema and the model services
 gateway-deploy:
-    {{bundle}} deploy
+    {{bundle}} deploy --target dev
 
 # Delete everything the bundle created
 gateway-destroy:
-    {{bundle}} destroy
+    {{bundle}} destroy --target dev
+
+# === AGENT BEHAVIOR EVALUATION (opt-in; creates MLflow state and uses judge tokens) ===
+
+# Create/update managed datasets and register the four behavior judges
+behavior-eval-setup:
+    uv run --extra eval python scripts/behavior_eval.py setup
+
+# Five redacted synthetic trajectories: a cheap pipeline/scorer sanity check
+behavior-eval-smoke:
+    uv run --extra eval python scripts/behavior_eval.py smoke
+
+# Sixty redacted synthetic trajectories: 15 per project behavior
+behavior-eval:
+    uv run --extra eval python scripts/behavior_eval.py run
 
 # Show a model service's routing, fallback and rate limits
 gateway-show service="gemini_router":

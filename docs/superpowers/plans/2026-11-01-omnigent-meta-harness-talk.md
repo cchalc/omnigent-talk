@@ -535,6 +535,30 @@ exit $ok
 - [ ] **Step 6: Full dry run** with a timer: preflight, then the whole talk. Log overruns and failures in `lessons.md` and fix them. Repeat until it runs clean twice.
 - [ ] **Step 7:** Overwrite `checkpoint.md` and commit (`docs: talk outline, notes, runbook`).
 
+### Task 15: Project agent guidance and behavior evaluation
+
+**Files:**
+- Modify: `AGENTS.md`; keep `CLAUDE.md` as `@AGENTS.md`
+- Create: `.config/wt.toml`, `.agents/behaviors/*/BEHAVIOR.md`, MLflow evaluation runner
+
+**Interfaces:**
+- Worktrunk owns child worktrees and runs `just check` before merge. JJ 0.45.1 is used only in
+  the primary worktree because it cannot initialize inside Git worktrees.
+- Four Agent Behavior specs govern Databricks data processing, infrastructure deployment,
+  evidence-backed talk content, and rehearsal-ready demos.
+- `just behavior-eval-setup`, `just behavior-eval-smoke`, and `just behavior-eval` use the
+  user-selected `DBX_PROFILE` and opt-in Databricks MLflow experiment/model settings.
+
+- [x] **Step 1:** Make AGENTS.md the concise source of truth and preserve CLAUDE.md's import.
+- [x] **Step 2:** Add the Worktrunk pre-merge check and document the JJ/worktree boundary.
+- [x] **Step 3:** Add the four behavior specs in the agentbehavior.dev format.
+- [x] **Step 4:** Add a public-safe 60-case synthetic trajectory corpus, managed MLflow datasets,
+  and registered `make_judge()` scorers. Keep workspace runs outside `just check`.
+- [ ] **Step 5:** Run the five-case smoke evaluation, then the full evaluation. Record run IDs and
+  scorer agreement on the talk's receipts slide without exposing the experiment URL.
+- [ ] **Step 6:** Rehearse the behaviors as a short build-log beat: show one passing trajectory and
+  one caught failure, citing agentbehavior.dev from the fact sheet.
+
 ---
 
 ## Decisions (presenter)

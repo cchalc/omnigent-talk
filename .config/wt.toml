@@ -1,0 +1,4 @@
+# Shared Worktrunk policy. Worktrunk owns child worktrees; JJ is primary-worktree-only.
+
+[[pre-merge]]
+check = "just check"

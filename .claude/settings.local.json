@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__omnigent__sys_agent_list",
+      "mcp__omnigent__sys_session_list"
+    ]
+  }
+}
