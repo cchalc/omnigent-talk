@@ -98,6 +98,18 @@ ratelimit-demo n="60" service="gemini_router":
 usage-sql pattern="%":
     databricks experimental aitools tools query demos/routing/usage.sql --param service_pattern="$1" --profile "$DBX_PROFILE"
 
+# Request-tagged usage and attributable external-model spend
+obs-usage days="7":
+    databricks experimental aitools tools query demos/observability/usage.sql demos/observability/usage_summary.sql demos/observability/cost.sql --param lookback_days:INT="$1" --profile "$DBX_PROFILE"
+
+# gemini_router traffic split, fallback attempts and failures
+obs-routing days="7":
+    databricks experimental aitools tools query demos/observability/routing.sql --param lookback_days:INT="$1" --profile "$DBX_PROFILE"
+
+# Table and column lineage for the parameterised bakehouse object prefix
+obs-lineage days="30":
+    databricks experimental aitools tools query demos/observability/table_lineage.sql demos/observability/column_lineage.sql --param catalog="$CATALOG" --param schema="$SCHEMA" --param lookback_days:INT="$1" --profile "$DBX_PROFILE"
+
 # Print an account budget body: blocks YOUR Unity Gateway use past the monthly cap.
 # Flags: --alert-only (email instead of block), --everyone (all users; not on shared workspaces)
 budget per_user_usd="1.00" *flags:

@@ -1,0 +1,1053 @@
+{
+  "datasets": [
+    {
+      "name": "ds_usage",
+      "displayName": "Gateway usage by request tag",
+      "queryLines": [
+        "SELECT\n",
+        "  date_trunc('HOUR', event_time) AS event_hour,\n",
+        "  coalesce(\n",
+        "    nullif(request_tags['agent_spec'], ''),\n",
+        "    nullif(request_tags['job'], ''),\n",
+        "    '(unset)'\n",
+        "  ) AS agent_spec,\n",
+        "  coalesce(\n",
+        "    nullif(request_tags['harness'], ''),\n",
+        "    nullif(session_metadata.coding_agent, ''),\n",
+        "    '(unset)'\n",
+        "  ) AS harness,\n",
+        "  coalesce(\n",
+        "    nullif(request_tags['demo'], ''),\n",
+        "    nullif(request_tags['pipeline'], ''),\n",
+        "    '(unset)'\n",
+        "  ) AS demo,\n",
+        "  coalesce(destination_model, '(unknown)') AS destination_model,\n",
+        "  count(*) AS requests,\n",
+        "  sum(coalesce(input_tokens, 0)) AS input_tokens,\n",
+        "  sum(coalesce(output_tokens, 0)) AS output_tokens,\n",
+        "  sum(coalesce(total_tokens, 0)) AS total_tokens,\n",
+        "  sum(coalesce(latency_ms, 0)) AS latency_ms_sum\n",
+        "FROM system.ai_gateway.usage\n",
+        "WHERE event_time >= date_sub(current_date(), :lookback_days)\n",
+        "  AND service_type = 'MODEL_SERVICE'\n",
+        "  AND (\n",
+        "    substring_index(endpoint_name, '.', -1) IN (\n",
+        "      'gemini_router', 'gemini_fast', 'gemini_general', 'qwen_code'\n",
+        "    )\n",
+        "    OR request_tags['demo'] = 'bakehouse'\n",
+        "    OR request_tags['pipeline'] = 'bakehouse'\n",
+        "    OR request_tags['job'] LIKE 'bakehouse-%'\n",
+        "  )\n",
+        "GROUP BY ALL\n",
+        "ORDER BY event_hour DESC, requests DESC\n",
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "7"}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_usage_summary",
+      "displayName": "Gateway usage summary",
+      "queryLines": [
+        "SELECT\n",
+        "  count(*) AS requests,\n",
+        "  sum(coalesce(total_tokens, 0)) AS total_tokens,\n",
+        "  round(sum(coalesce(latency_ms, 0)) / nullif(count(latency_ms), 0)) AS avg_latency_ms\n",
+        "FROM system.ai_gateway.usage\n",
+        "WHERE event_time >= date_sub(current_date(), :lookback_days)\n",
+        "  AND service_type = 'MODEL_SERVICE'\n",
+        "  AND (\n",
+        "    substring_index(endpoint_name, '.', -1) IN (\n",
+        "      'gemini_router', 'gemini_fast', 'gemini_general', 'qwen_code'\n",
+        "    )\n",
+        "    OR request_tags['demo'] = 'bakehouse'\n",
+        "    OR request_tags['pipeline'] = 'bakehouse'\n",
+        "    OR request_tags['job'] LIKE 'bakehouse-%'\n",
+        "  );\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "7"}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_cost",
+      "displayName": "External model spend by request tag",
+      "queryLines": [
+        "WITH token_usage AS (\n",
+        "  SELECT\n",
+        "    CAST(event_time AS DATE) AS usage_date,\n",
+        "    coalesce(\n",
+        "      nullif(request_tags['harness'], ''),\n",
+        "      nullif(session_metadata.coding_agent, ''),\n",
+        "      nullif(request_tags['agent_spec'], ''),\n",
+        "      nullif(request_tags['job'], ''),\n",
+        "      '(unset)'\n",
+        "    ) AS harness,\n",
+        "    count(*) AS requests,\n",
+        "    sum(coalesce(total_tokens, 0)) AS total_tokens\n",
+        "  FROM system.ai_gateway.usage\n",
+        "  WHERE event_time >= date_sub(current_date(), :lookback_days)\n",
+        "    AND service_type = 'MODEL_SERVICE'\n",
+        "    AND (\n",
+        "      substring_index(endpoint_name, '.', -1) IN (\n",
+        "        'gemini_router', 'gemini_fast', 'gemini_general', 'qwen_code'\n",
+        "      )\n",
+        "      OR request_tags['demo'] = 'bakehouse'\n",
+        "      OR request_tags['pipeline'] = 'bakehouse'\n",
+        "      OR request_tags['job'] LIKE 'bakehouse-%'\n",
+        "    )\n",
+        "  GROUP BY ALL\n",
+        "),\n",
+        "external_cost AS (\n",
+        "  SELECT\n",
+        "    usage_date,\n",
+        "    coalesce(\n",
+        "      nullif(custom_tags.request_tags['harness'], ''),\n",
+        "      nullif(custom_tags.request_tags['agent_spec'], ''),\n",
+        "      nullif(custom_tags.request_tags['job'], ''),\n",
+        "      '(unset)'\n",
+        "    ) AS harness,\n",
+        "    sum(usage_quantity) AS external_cost_usd\n",
+        "  FROM system.ai_gateway.external_model_spend\n",
+        "  WHERE usage_date >= date_sub(current_date(), :lookback_days)\n",
+        "    AND (\n",
+        "      substring_index(usage_metadata.endpoint_name, '.', -1) IN (\n",
+        "        'gemini_router', 'gemini_fast', 'gemini_general', 'qwen_code'\n",
+        "      )\n",
+        "      OR custom_tags.request_tags['demo'] = 'bakehouse'\n",
+        "      OR custom_tags.request_tags['pipeline'] = 'bakehouse'\n",
+        "      OR custom_tags.request_tags['job'] LIKE 'bakehouse-%'\n",
+        "    )\n",
+        "  GROUP BY ALL\n",
+        ")\n",
+        "SELECT\n",
+        "  coalesce(t.usage_date, c.usage_date) AS usage_date,\n",
+        "  coalesce(t.harness, c.harness) AS harness,\n",
+        "  coalesce(t.requests, 0) AS requests,\n",
+        "  coalesce(t.total_tokens, 0) AS total_tokens,\n",
+        "  round(c.external_cost_usd, 6) AS external_cost_usd\n",
+        "FROM token_usage AS t\n",
+        "FULL OUTER JOIN external_cost AS c\n",
+        "  ON t.usage_date = c.usage_date\n",
+        "  AND t.harness = c.harness\n",
+        "ORDER BY usage_date DESC, requests DESC\n",
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "7"}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_routing",
+      "displayName": "gemini_router split and fallback attempts",
+      "queryLines": [
+        "SELECT\n",
+        "  date_trunc('HOUR', event_time) AS event_hour,\n",
+        "  coalesce(destination_model, '(unknown)') AS destination_model,\n",
+        "  count(*) AS requests,\n",
+        "  sum(CASE WHEN size(routing_information.attempts) > 1 THEN 1 ELSE 0 END) AS fallbacks,\n",
+        "  sum(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS failed_requests,\n",
+        "  round(avg(latency_ms)) AS avg_latency_ms,\n",
+        "  sum(coalesce(total_tokens, 0)) AS total_tokens\n",
+        "FROM system.ai_gateway.usage\n",
+        "WHERE event_time >= date_sub(current_date(), :lookback_days)\n",
+        "  AND service_type = 'MODEL_SERVICE'\n",
+        "  AND substring_index(endpoint_name, '.', -1) = 'gemini_router'\n",
+        "GROUP BY ALL\n",
+        "ORDER BY event_hour DESC, requests DESC\n",
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "7"}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_table_lineage",
+      "displayName": "Bakehouse table lineage",
+      "queryLines": [
+        "SELECT\n",
+        "  max(event_time) AS last_seen,\n",
+        "  CASE\n",
+        "    WHEN entity_metadata.genie_space_id IS NOT NULL THEN 'GENIE'\n",
+        "    ELSE coalesce(nullif(entity_type, ''), 'DIRECT')\n",
+        "  END AS observed_entity_type,\n",
+        "  concat(source_table_schema, '.', source_table_name) AS source_object,\n",
+        "  source_type,\n",
+        "  concat(target_table_schema, '.', target_table_name) AS target_object,\n",
+        "  target_type,\n",
+        "  count(*) AS lineage_events\n",
+        "FROM system.access.table_lineage\n",
+        "WHERE event_date >= date_sub(current_date(), :lookback_days)\n",
+        "  AND (\n",
+        "    (\n",
+        "      source_table_catalog = coalesce(nullif(:catalog, ''), current_catalog())\n",
+        "      AND source_table_schema = coalesce(nullif(:schema, ''), current_schema())\n",
+        "      AND lower(coalesce(source_table_name, '')) LIKE 'bakehouse\\_%' ESCAPE '\\\\'\n",
+        "    )\n",
+        "    OR (\n",
+        "      target_table_catalog = coalesce(nullif(:catalog, ''), current_catalog())\n",
+        "      AND target_table_schema = coalesce(nullif(:schema, ''), current_schema())\n",
+        "      AND lower(coalesce(target_table_name, '')) LIKE 'bakehouse\\_%' ESCAPE '\\\\'\n",
+        "    )\n",
+        "  )\n",
+        "GROUP BY ALL\n",
+        "ORDER BY last_seen DESC\n",
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "30"}]}
+          }
+        },
+        {
+          "keyword": "catalog",
+          "displayName": "Catalog scope",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {"dataType": "STRING", "values": [{"value": ""}]}
+          }
+        },
+        {
+          "keyword": "schema",
+          "displayName": "Schema scope",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {"dataType": "STRING", "values": [{"value": ""}]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_column_lineage",
+      "displayName": "Bakehouse column lineage",
+      "queryLines": [
+        "SELECT\n",
+        "  max(event_time) AS last_seen,\n",
+        "  CASE\n",
+        "    WHEN entity_metadata.genie_space_id IS NOT NULL THEN 'GENIE'\n",
+        "    ELSE coalesce(nullif(entity_type, ''), 'DIRECT')\n",
+        "  END AS observed_entity_type,\n",
+        "  concat(source_table_schema, '.', source_table_name) AS source_object,\n",
+        "  source_column_name,\n",
+        "  concat(target_table_schema, '.', target_table_name) AS target_object,\n",
+        "  target_column_name,\n",
+        "  count(*) AS mapping_events\n",
+        "FROM system.access.column_lineage\n",
+        "WHERE event_date >= date_sub(current_date(), :lookback_days)\n",
+        "  AND (\n",
+        "    (\n",
+        "      source_table_catalog = coalesce(nullif(:catalog, ''), current_catalog())\n",
+        "      AND source_table_schema = coalesce(nullif(:schema, ''), current_schema())\n",
+        "      AND lower(coalesce(source_table_name, '')) LIKE 'bakehouse\\_%' ESCAPE '\\\\'\n",
+        "    )\n",
+        "    OR (\n",
+        "      target_table_catalog = coalesce(nullif(:catalog, ''), current_catalog())\n",
+        "      AND target_table_schema = coalesce(nullif(:schema, ''), current_schema())\n",
+        "      AND lower(coalesce(target_table_name, '')) LIKE 'bakehouse\\_%' ESCAPE '\\\\'\n",
+        "    )\n",
+        "  )\n",
+        "GROUP BY ALL\n",
+        "ORDER BY last_seen DESC\n",
+        "LIMIT 1000;\n"
+      ],
+      "parameters": [
+        {
+          "keyword": "lookback_days",
+          "displayName": "Lookback days",
+          "dataType": "INTEGER",
+          "defaultSelection": {
+            "values": {"dataType": "INTEGER", "values": [{"value": "30"}]}
+          }
+        },
+        {
+          "keyword": "catalog",
+          "displayName": "Catalog scope",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {"dataType": "STRING", "values": [{"value": ""}]}
+          }
+        },
+        {
+          "keyword": "schema",
+          "displayName": "Schema scope",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {"dataType": "STRING", "values": [{"value": ""}]}
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "usage-by-agent",
+      "displayName": "Usage by harness/agent",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "usage-title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Usage by harness and agent spec\n",
+                "\n",
+                "Request tags connect each harness decision to the destination model. Usage can lag live requests by about one hour; USD below is external-provider spend only."
+              ]
+            }
+          },
+          "position": {"x": 0, "y": 0, "width": 12, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "usage-requests",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage_summary",
+                  "fields": [
+                    {"name": "requests", "expression": "`requests`"}
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {"fieldName": "requests", "displayName": "Requests"}
+              },
+              "frame": {"showTitle": true, "title": "Requests"}
+            }
+          },
+          "position": {"x": 0, "y": 2, "width": 3, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "usage-tokens",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage_summary",
+                  "fields": [
+                    {"name": "total_tokens", "expression": "`total_tokens`"}
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "total_tokens",
+                  "displayName": "Tokens",
+                  "format": {
+                    "type": "number",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {"type": "max", "places": 1}
+                  }
+                }
+              },
+              "frame": {"showTitle": true, "title": "Tokens"}
+            }
+          },
+          "position": {"x": 3, "y": 2, "width": 3, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "usage-latency",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage_summary",
+                  "fields": [
+                    {"name": "avg_latency_ms", "expression": "`avg_latency_ms`"}
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_latency_ms",
+                  "displayName": "Avg latency",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {"type": "max", "places": 0}
+                  },
+                  "formatTemplate": "{{ @formatted }} ms"
+                }
+              },
+              "frame": {"showTitle": true, "title": "Avg latency"}
+            }
+          },
+          "position": {"x": 6, "y": 2, "width": 3, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "usage-external-cost",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_cost",
+                  "fields": [
+                    {
+                      "name": "sum(external_cost_usd)",
+                      "expression": "SUM(`external_cost_usd`)"
+                    },
+                    {"name": "usage_date", "expression": "`usage_date`"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(external_cost_usd)",
+                  "displayName": "External spend",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "decimalPlaces": {"type": "max", "places": 2}
+                  }
+                },
+                "period": {"fieldName": "usage_date"}
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "External spend",
+                "showDescription": true,
+                "description": "Hosted-model cost is in Unity Gateway > Usage > Spend."
+              }
+            }
+          },
+          "position": {"x": 9, "y": 2, "width": 3, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "usage-by-harness",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {"name": "harness", "expression": "`harness`"},
+                    {"name": "destination_model", "expression": "`destination_model`"},
+                    {"name": "sum(requests)", "expression": "SUM(`requests`)"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {"fieldName": "harness", "scale": {"type": "categorical"}},
+                "y": {
+                  "fieldName": "sum(requests)",
+                  "scale": {"type": "quantitative"},
+                  "displayName": "Requests"
+                },
+                "color": {
+                  "fieldName": "destination_model",
+                  "scale": {"type": "categorical"},
+                  "displayName": "Destination model"
+                }
+              },
+              "frame": {"showTitle": true, "title": "Requests by harness and model"}
+            }
+          },
+          "position": {"x": 0, "y": 5, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "usage-over-time",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {"name": "event_hour", "expression": "`event_hour`"},
+                    {"name": "harness", "expression": "`harness`"},
+                    {"name": "sum(requests)", "expression": "SUM(`requests`)"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {"fieldName": "event_hour", "scale": {"type": "temporal"}},
+                "y": {
+                  "fieldName": "sum(requests)",
+                  "scale": {"type": "quantitative"},
+                  "displayName": "Requests"
+                },
+                "color": {"fieldName": "harness", "scale": {"type": "categorical"}}
+              },
+              "frame": {"showTitle": true, "title": "Request volume over time"}
+            }
+          },
+          "position": {"x": 6, "y": 5, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "usage-agent-detail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_usage",
+                  "fields": [
+                    {"name": "event_hour", "expression": "`event_hour`"},
+                    {"name": "agent_spec", "expression": "`agent_spec`"},
+                    {"name": "harness", "expression": "`harness`"},
+                    {"name": "demo", "expression": "`demo`"},
+                    {"name": "destination_model", "expression": "`destination_model`"},
+                    {"name": "requests", "expression": "`requests`"},
+                    {"name": "total_tokens", "expression": "`total_tokens`"}
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {"fieldName": "event_hour", "displayName": "Hour"},
+                  {"fieldName": "agent_spec", "displayName": "Agent spec"},
+                  {"fieldName": "harness", "displayName": "Harness"},
+                  {"fieldName": "demo", "displayName": "Demo"},
+                  {"fieldName": "destination_model", "displayName": "Destination model"},
+                  {"fieldName": "requests", "displayName": "Requests"},
+                  {"fieldName": "total_tokens", "displayName": "Tokens"}
+                ]
+              },
+              "frame": {"showTitle": true, "title": "Agent and harness detail"}
+            }
+          },
+          "position": {"x": 0, "y": 11, "width": 12, "height": 6}
+        }
+      ]
+    },
+    {
+      "name": "routing-split",
+      "displayName": "Routing split",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "routing-title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# gemini_router split and fallback evidence\n",
+                "\n",
+                "The configured 80/20 weights converge over many calls. More than one routing attempt marks a fallback."
+              ]
+            }
+          },
+          "position": {"x": 0, "y": 0, "width": 12, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "routing-requests",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_routing",
+                  "fields": [
+                    {"name": "sum(requests)", "expression": "SUM(`requests`)"},
+                    {"name": "event_hour", "expression": "`event_hour`"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {"fieldName": "sum(requests)", "displayName": "Requests"},
+                "period": {"fieldName": "event_hour"}
+              },
+              "frame": {"showTitle": true, "title": "Router requests"}
+            }
+          },
+          "position": {"x": 0, "y": 2, "width": 4, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "routing-fallbacks",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_routing",
+                  "fields": [
+                    {"name": "sum(fallbacks)", "expression": "SUM(`fallbacks`)"},
+                    {"name": "event_hour", "expression": "`event_hour`"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {"fieldName": "sum(fallbacks)", "displayName": "Fallbacks"},
+                "period": {"fieldName": "event_hour"}
+              },
+              "frame": {"showTitle": true, "title": "Fallbacks"}
+            }
+          },
+          "position": {"x": 4, "y": 2, "width": 4, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "routing-failures",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_routing",
+                  "fields": [
+                    {
+                      "name": "sum(failed_requests)",
+                      "expression": "SUM(`failed_requests`)"
+                    },
+                    {"name": "event_hour", "expression": "`event_hour`"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(failed_requests)",
+                  "displayName": "Failed requests"
+                },
+                "period": {"fieldName": "event_hour"}
+              },
+              "frame": {"showTitle": true, "title": "Failed requests"}
+            }
+          },
+          "position": {"x": 8, "y": 2, "width": 4, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "routing-destination-split",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_routing",
+                  "fields": [
+                    {"name": "destination_model", "expression": "`destination_model`"},
+                    {"name": "sum(requests)", "expression": "SUM(`requests`)"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "destination_model",
+                  "scale": {"type": "categorical"},
+                  "displayName": "Destination model"
+                },
+                "y": {
+                  "fieldName": "sum(requests)",
+                  "scale": {"type": "quantitative"},
+                  "displayName": "Requests"
+                }
+              },
+              "frame": {"showTitle": true, "title": "Destination split"}
+            }
+          },
+          "position": {"x": 0, "y": 5, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "routing-split-over-time",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_routing",
+                  "fields": [
+                    {"name": "event_hour", "expression": "`event_hour`"},
+                    {"name": "destination_model", "expression": "`destination_model`"},
+                    {"name": "sum(requests)", "expression": "SUM(`requests`)"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {"fieldName": "event_hour", "scale": {"type": "temporal"}},
+                "y": {
+                  "fieldName": "sum(requests)",
+                  "scale": {"type": "quantitative"},
+                  "displayName": "Requests"
+                },
+                "color": {
+                  "fieldName": "destination_model",
+                  "scale": {"type": "categorical"}
+                }
+              },
+              "frame": {"showTitle": true, "title": "Split over time"}
+            }
+          },
+          "position": {"x": 6, "y": 5, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "routing-detail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_routing",
+                  "fields": [
+                    {"name": "event_hour", "expression": "`event_hour`"},
+                    {"name": "destination_model", "expression": "`destination_model`"},
+                    {"name": "requests", "expression": "`requests`"},
+                    {"name": "fallbacks", "expression": "`fallbacks`"},
+                    {"name": "failed_requests", "expression": "`failed_requests`"},
+                    {"name": "avg_latency_ms", "expression": "`avg_latency_ms`"}
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {"fieldName": "event_hour", "displayName": "Hour"},
+                  {"fieldName": "destination_model", "displayName": "Destination model"},
+                  {"fieldName": "requests", "displayName": "Requests"},
+                  {"fieldName": "fallbacks", "displayName": "Fallbacks"},
+                  {"fieldName": "failed_requests", "displayName": "Failures"},
+                  {"fieldName": "avg_latency_ms", "displayName": "Avg latency (ms)"}
+                ]
+              },
+              "frame": {"showTitle": true, "title": "Routing detail"}
+            }
+          },
+          "position": {"x": 0, "y": 11, "width": 12, "height": 6}
+        }
+      ]
+    },
+    {
+      "name": "lineage",
+      "displayName": "Lineage",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "lineage-title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Bakehouse lineage\n",
+                "\n",
+                "Table and column lineage events from Unity Catalog. Genie is derived from `entity_metadata.genie_space_id`; jobs and dashboards retain their native entity types."
+              ]
+            }
+          },
+          "position": {"x": 0, "y": 0, "width": 12, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "lineage-table-events",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_lineage",
+                  "fields": [
+                    {
+                      "name": "sum(lineage_events)",
+                      "expression": "SUM(`lineage_events`)"
+                    },
+                    {"name": "last_seen", "expression": "`last_seen`"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(lineage_events)",
+                  "displayName": "Table events"
+                },
+                "period": {"fieldName": "last_seen"}
+              },
+              "frame": {"showTitle": true, "title": "Table lineage events"}
+            }
+          },
+          "position": {"x": 0, "y": 2, "width": 6, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "lineage-column-events",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_column_lineage",
+                  "fields": [
+                    {
+                      "name": "sum(mapping_events)",
+                      "expression": "SUM(`mapping_events`)"
+                    },
+                    {"name": "last_seen", "expression": "`last_seen`"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(mapping_events)",
+                  "displayName": "Column events"
+                },
+                "period": {"fieldName": "last_seen"}
+              },
+              "frame": {"showTitle": true, "title": "Column lineage events"}
+            }
+          },
+          "position": {"x": 6, "y": 2, "width": 6, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "lineage-by-entity",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_lineage",
+                  "fields": [
+                    {
+                      "name": "observed_entity_type",
+                      "expression": "`observed_entity_type`"
+                    },
+                    {
+                      "name": "sum(lineage_events)",
+                      "expression": "SUM(`lineage_events`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "observed_entity_type",
+                  "scale": {"type": "categorical"},
+                  "displayName": "Entity type"
+                },
+                "y": {
+                  "fieldName": "sum(lineage_events)",
+                  "scale": {"type": "quantitative"},
+                  "displayName": "Events"
+                }
+              },
+              "frame": {"showTitle": true, "title": "Lineage by originating entity"}
+            }
+          },
+          "position": {"x": 0, "y": 5, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "lineage-table-detail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_table_lineage",
+                  "fields": [
+                    {"name": "last_seen", "expression": "`last_seen`"},
+                    {
+                      "name": "observed_entity_type",
+                      "expression": "`observed_entity_type`"
+                    },
+                    {
+                      "name": "source_object",
+                      "expression": "`source_object`"
+                    },
+                    {
+                      "name": "target_object",
+                      "expression": "`target_object`"
+                    },
+                    {"name": "lineage_events", "expression": "`lineage_events`"}
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {"fieldName": "last_seen", "displayName": "Last seen"},
+                  {"fieldName": "observed_entity_type", "displayName": "Entity"},
+                  {"fieldName": "source_object", "displayName": "Source"},
+                  {"fieldName": "target_object", "displayName": "Target"},
+                  {"fieldName": "lineage_events", "displayName": "Events"}
+                ]
+              },
+              "frame": {"showTitle": true, "title": "Table lineage detail"}
+            }
+          },
+          "position": {"x": 6, "y": 5, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "lineage-column-detail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_column_lineage",
+                  "fields": [
+                    {"name": "last_seen", "expression": "`last_seen`"},
+                    {
+                      "name": "observed_entity_type",
+                      "expression": "`observed_entity_type`"
+                    },
+                    {
+                      "name": "source_object",
+                      "expression": "`source_object`"
+                    },
+                    {"name": "source_column_name", "expression": "`source_column_name`"},
+                    {
+                      "name": "target_object",
+                      "expression": "`target_object`"
+                    },
+                    {"name": "target_column_name", "expression": "`target_column_name`"},
+                    {"name": "mapping_events", "expression": "`mapping_events`"}
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {"fieldName": "last_seen", "displayName": "Last seen"},
+                  {"fieldName": "observed_entity_type", "displayName": "Entity"},
+                  {"fieldName": "source_object", "displayName": "Source table"},
+                  {"fieldName": "source_column_name", "displayName": "Source column"},
+                  {"fieldName": "target_object", "displayName": "Target table"},
+                  {"fieldName": "target_column_name", "displayName": "Target column"},
+                  {"fieldName": "mapping_events", "displayName": "Events"}
+                ]
+              },
+              "frame": {"showTitle": true, "title": "Column lineage detail"}
+            }
+          },
+          "position": {"x": 0, "y": 11, "width": 12, "height": 7}
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {"light": "#F6F8FA", "dark": "#17202A"},
+      "widgetBackgroundColor": {"light": "#FFFFFF", "dark": "#101820"},
+      "widgetBorderColor": {"light": "#FFFFFF", "dark": "#101820"},
+      "fontColor": {"light": "#17202A", "dark": "#ECF2F8"},
+      "selectionColor": {"light": "#0072B2", "dark": "#56B4E9"},
+      "visualizationColors": [
+        "#0072B2",
+        "#E69F00",
+        "#009E73",
+        "#CC79A7",
+        "#D55E00",
+        "#56B4E9",
+        "#F0E442"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}
