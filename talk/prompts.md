@@ -66,3 +66,33 @@ Code subagent. They agreed on the worst bug, and each found one the other missed
 that the headless deploy couldn't answer a confirmation prompt. Claude found that the deploy
 gate was enforced only by the prompt. Both are fixed: a CEL `approval_relay` policy now ASKs
 before any approval reaches the worker, and destroy belongs to the presenter alone.
+
+## 2026-11-04 · Smart Routing (Beta)
+
+### Build prompt (Claude Code, through the Omnigent claude-native-ui agent)
+
+> I want to work through the smart routing demo https://docs.databricks.com/aws/en/ai-gateway/coding-agent-model-selection#use-smart-routing-in-omnigent
+
+### Stage prompt (`omni-fevm claude --smart-routing`, and again in the UI Smart Routing harness)
+
+```
+Use three subagents, one per task, and run them in parallel. Change no files. (1) In README.md, say in one sentence what this repo is for. (2) Explain what `parse_label` in src/omnigent_talk/router.py does and what it returns for an empty answer. (3) Review how gateway.py, router.py and routing.py handle 429s and retries across the whole package, and list the three riskiest gaps. When all three finish, tell me which model each subagent used.
+```
+
+Not yet run live (rehearsal pending).
+
+### Preview corpus outcome (`just smart-routing-preview`, 2026-11-04)
+
+| Prompt (from `demos/smart-routing/prompts.txt`) | claude pick | codex pick |
+| :---- | :---- | :---- |
+| Fix a typo in README.md line 3 | claude-opus-4-8 | gpt-5-6-sol |
+| Rename a variable in a named file | claude-opus-4-8 | gpt-5-6-sol |
+| Add a unit test in a named file | claude-opus-4-8 | gpt-5-6-sol |
+| Why does this TypeError fail (trace) | claude-sonnet-5 | gpt-5-6-sol |
+| Flaky pytest run | claude-sonnet-5 | gpt-5-6-sol |
+| Cross-file gateway refactor | claude-sonnet-5 | gpt-5-6-sol |
+| Cross-cutting rate-limit migration | claude-sonnet-5 | gpt-5-6-sol |
+
+Rationale for the escalations: "[not_crosscutting AND not_mixed_change AND low_ambiguity] all
+hold -> escalate up to claude-opus-4-8". The rest: "not all hold -> default claude-sonnet-5".
+The router uses an LLM extraction step, so a rerun can differ. One run.
