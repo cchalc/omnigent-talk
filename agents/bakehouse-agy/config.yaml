@@ -1,0 +1,25 @@
+spec_version: 1
+name: bakehouse-agy
+description: Bakehouse analyst on native Antigravity (agy), Gemini via the gemini_router model service.
+
+# Omnigent rejects `omni run AGENT --harness <x>-native`, so the harness is bound here and
+# each harness gets its own bundle. prompt.md (a copy of agents/prompt.md) and skills/ (links
+# to the repo's skills/) are the same in all four. Run with `just agent <harness>`.
+executor:
+  type: omnigent
+  config:
+    harness: antigravity-native
+  # Pinned: with no model agy starts on Gemini 3.1 Pro, which the workspace doesn't serve, and
+  # the turn ends empty. agy took `--model gemini-3.8-flash` live (2026-11-03). The default
+  # Gemini provider must be the shim (`just agents-print-config`), which sends every turn to gemini_router anyway.
+  model: gemini-3.8-flash
+
+instructions: prompt.md
+# Hermetic: only the three bundled skills, none from the presenter's machine.
+skills: none
+
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none

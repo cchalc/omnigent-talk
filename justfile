@@ -120,6 +120,20 @@ agy-provider:
     @printf 'providers:\n  gemini-shim:\n    kind: key\n    default: [gemini]\n    gemini:\n      base_url: http://127.0.0.1:%s\n      api_key: <SHIM_KEY from .env.local>\n' "$SHIM_PORT"
     @echo "# Only one provider may be the gemini default: unset it on the other one first."
 
+# === BAKEHOUSE AGENTS (agents/) ===
+
+# One bakehouse agent: agy (shim -> gemini_router), claude, codex or pi. Tags its gateway calls
+agent harness="agy" *args:
+    uv run python -m omnigent_talk.agents run "$@"
+
+# Parse and validate every agents/ bundle with the installed omnigent (offline)
+agents-validate:
+    "$(sed -n '1s/^#!//p' "$(command -v omni)")" -I src/omnigent_talk/agents.py validate
+
+# Print the provider config the agents need, and their tags. Add it yourself
+agents-print-config:
+    @uv run python -m omnigent_talk.agents print-config
+
 # === AGENT MEMORY (managed, Lakebase-backed, Beta) ===
 
 # Create the memory store named by MEMORY_STORE (idempotent)

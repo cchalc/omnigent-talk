@@ -1,0 +1,22 @@
+spec_version: 1
+name: bakehouse-codex
+description: Bakehouse analyst on native Codex.
+
+# Omnigent rejects `omni run AGENT --harness <x>-native`, so the harness is bound here and
+# each harness gets its own bundle. prompt.md (a copy of agents/prompt.md) and skills/ (links
+# to the repo's skills/) are the same in all four. Run with `just agent <harness>`.
+executor:
+  type: omnigent
+  config:
+    harness: codex-native
+  # The model and gateway come from the default OpenAI provider.
+
+instructions: prompt.md
+# Hermetic: only the three bundled skills, none from the presenter's machine.
+skills: none
+
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none

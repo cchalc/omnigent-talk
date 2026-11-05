@@ -1,0 +1,25 @@
+spec_version: 1
+name: bakehouse-pi
+description: Bakehouse analyst on pi, on a Claude model through the workspace gateway.
+
+# Omnigent rejects `omni run AGENT --harness <x>-native`, so the harness is bound here and
+# each harness gets its own bundle. prompt.md (a copy of agents/prompt.md) and skills/ (links
+# to the repo's skills/) are the same in all four. Run with `just agent <harness>`.
+executor:
+  type: omnigent
+  config:
+    harness: pi
+  # Not Gemini: Omnigent's pi tool schemas keep JSON-schema `type: [X, "null"]` arrays
+  # (`inner/pi_executor.py`, `_sanitize_schema`), which Gemini on the gateway rejects with
+  # HTTP 400. Direct pi needs the serving-endpoint name (docs/setup-log.md, section 6).
+  model: databricks-claude-sonnet-5-5
+
+instructions: prompt.md
+# Hermetic: only the three bundled skills, none from the presenter's machine.
+skills: none
+
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
