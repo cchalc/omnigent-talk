@@ -190,14 +190,14 @@ A local config is for agents to find and launch. A card in the picker needs `omn
 ## Custom agent: `rory`
 
 `agents/rory/` is this repo's own bundle. Polly and debby split work by vendor. Rory splits it
-by task: review and deploys go to Codex, and SQL and simple one-shot answers go to Qwen on the
-talk schema's own model service.
+by task: review and deploys go to Codex, and SQL and simple one-shot answers go to the logical
+qwen worker on the talk schema's own 50/50 Qwen/Gemini model service.
 
 | Part | Harness | Role |
 | :---- | :---- | :---- |
 | `rory` (router) | `claude-sdk` | Classifies the request, dispatches it, and starts each reply with `route: <task> -> <worker>`. Writes no code. `approval_relay` (CEL: ASK before any message containing `APPROVED`), `spawn_bounds` of 3 per turn |
 | `codex` | `codex` (headless) | `REVIEW:` reads the diff and lists findings. `PLAN:` runs `just gateway-validate` and `just gateway-plan`. Deploys only on `DEPLOY APPROVED` |
-| `qwen` | `openai-agents` | No tools. Model `${CATALOG}.${SCHEMA}.qwen_code` over the gateway's chat completions (`use_responses: false`), with Databricks profile auth from `DBX_PROFILE` |
+| `qwen` | `openai-agents` | No tools. Model `${CATALOG}.${SCHEMA}.code_router` over the gateway's chat completions (`use_responses: false`), with Databricks profile auth from `DBX_PROFILE`; the service routes 50/50 between Qwen and Gemini, with a fallback |
 
 Skills: `review` (how to brief codex) and `deploy` (the two-phase gate). The workers are
 headless and cannot answer an approval prompt, so the approval happens in rory's conversation
@@ -218,7 +218,7 @@ gitignored `.omnigent/rory/`, and `just agent-add` renders and uploads that copy
 not in the `builtins` section of `sys_agent_list`, which reads the unscoped `GET /v1/agents`.
 
 **Verified 2026-11-03** on the FEVM server:
-- `qwen_code` is deployed (`just gateway-deploy`).
+- The code service now named `code_router` was deployed (`just gateway-deploy`).
 - A spike of the qwen worker returned SQL.
 - A rory session routed the SQL demo prompt to `qwen` and the review prompt to `codex`.
 

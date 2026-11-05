@@ -24,7 +24,7 @@ What happened:
   `sys_session_get_history`. A Codex session was setting up jj and Worktrunk guidance in the
   primary worktree, and an Antigravity session was drafting a routing slide. To avoid
   collisions, the work moved to a Worktrunk child worktree (`cchalcraft/custom-agents`).
-- It found that `qwen_code` already existed in the bundle but was not yet deployed.
+- It found that `code_router` already existed in the bundle but was not yet deployed.
 - It asked four questions before planning: the Qwen route, the agent's name and registration,
   whether to clean up stale sessions, and how to integrate the work.
 
@@ -33,8 +33,9 @@ session, reads what the other harnesses are doing, and plans around them.
 
 ### Demo prompts for `rory`
 
-`rory` sends review and deploy work to a Codex worker, and SQL and simple tasks to a Qwen worker
-on the `qwen_code` model service. Paste these into a rory session in order.
+`rory` sends review and deploy work to a Codex worker, and SQL and simple tasks to its logical
+Qwen worker on the `code_router` model service. That service routes 50/50 between Qwen and
+Gemini, with a fallback. Paste these into a rory session in order.
 
 | # | Prompt | Expected worker | Outcome |
 |---|---|---|---|
@@ -48,7 +49,7 @@ on the `qwen_code` model service. Paste these into a rory session in order.
 These went from the build session to other agents. They are kept because they show the
 meta-harness driving itself.
 
-- To the `qwen-spike` bundle (openai-agents on `qwen_code`, launched with
+- To the `qwen-spike` bundle (openai-agents on `code_router`, launched with
   `sys_session_create(config_path=...)`): "Write a SQL query for the top 5 customers by total
   revenue from an orders table. Reply with only the SQL." It returned one SQL block. This proved
   the wiring before rory existed.

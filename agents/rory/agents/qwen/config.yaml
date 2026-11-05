@@ -1,14 +1,14 @@
 spec_version: 1
 name: qwen
 description: >-
-  Rory's Qwen worker: SQL and simple one-shot answers from Qwen 3.5 on the qwen_code model
-  service.
+  Rory's logical Qwen worker: SQL and simple one-shot answers on the code_router model service,
+  which routes 50/50 between Qwen and Gemini with a fallback.
 
 # openai-agents harness over the Unity Gateway's chat completions, with the model service's
 # Unity Catalog name as the model. Placeholders are filled by `just agent-render`.
 executor:
   type: omnigent
-  model: ${CATALOG}.${SCHEMA}.qwen_code
+  model: ${CATALOG}.${SCHEMA}.code_router
   config:
     harness: openai-agents
     # Qwen on the gateway speaks chat completions, not the Responses API.

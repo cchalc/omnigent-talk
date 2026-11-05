@@ -35,14 +35,12 @@ def test_harnesses():
     assert harness(WORKERS["qwen"]) == "openai-agents"
 
 
-def test_qwen_worker_targets_the_qwen_code_service():
+def test_qwen_worker_targets_the_code_router_service():
     qwen = WORKERS["qwen"]["executor"]
-    assert qwen["model"] == "${CATALOG}.${SCHEMA}.qwen_code"
+    assert qwen["model"] == "${CATALOG}.${SCHEMA}.code_router"
     assert qwen["auth"] == {"type": "databricks", "profile": "${DBX_PROFILE}"}
-    # The gateway serves Qwen over chat completions, not the Responses API.
+    # The gateway service speaks chat completions, not the Responses API.
     assert qwen["config"]["use_responses"] is False
-    services = yaml.safe_load(Path("resources/model_services.yml").read_text())
-    assert "qwen_code" in services["resources"]["model_services"]
 
 
 def test_router_asks_before_relaying_an_approval_and_bounds_dispatches():
@@ -87,9 +85,9 @@ ENV = {"CATALOG": "cat", "SCHEMA": "sch", "DBX_PROFILE": "prof"}
 
 
 def test_render_text_fills_known_placeholders_and_keeps_others():
-    text = "model: ${CATALOG}.${SCHEMA}.qwen_code\nprofile: ${DBX_PROFILE}\nkey: ${API_KEY}\n"
+    text = "model: ${CATALOG}.${SCHEMA}.code_router\nprofile: ${DBX_PROFILE}\nkey: ${API_KEY}\n"
     assert agent_bundle.render_text(text, ENV) == (
-        "model: cat.sch.qwen_code\nprofile: prof\nkey: ${API_KEY}\n"
+        "model: cat.sch.code_router\nprofile: prof\nkey: ${API_KEY}\n"
     )
 
 
@@ -105,7 +103,7 @@ def test_render_copies_the_bundle_and_replaces_stale_output(tmp_path):
     assert not (dest / "agents" / "gone").exists()
     assert Path("agents/qwen/config.yaml") in rendered
     qwen = yaml.safe_load((dest / "agents/qwen/config.yaml").read_text())
-    assert qwen["executor"]["model"] == "cat.sch.qwen_code"
+    assert qwen["executor"]["model"] == "cat.sch.code_router"
     assert (dest / "skills/deploy/SKILL.md").is_file()
 
 

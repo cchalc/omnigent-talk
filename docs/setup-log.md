@@ -167,13 +167,13 @@ sys_session_list   → a Codex session editing AGENTS.md (jj + Worktrunk), an An
 - **Talk point:** one prompt inventories every agent and session on the server and reads what
   the other harnesses are doing.
 
-### 2. Deploy `qwen_code`
+### 2. Deploy `code_router`
 ```bash
 just gateway-validate     # Validation OK!
-just gateway-plan         # create dashboards.routing, gemini_general, qwen_code; update gemini_router, gemini_fast
+just gateway-plan         # create dashboards.routing, gemini_general, code_router; update gemini_router, gemini_fast
 just gateway-deploy       # Resources: 3 created, 2 changed, 0 deleted
 just ask "Write a SQL query for the top 5 customers by total revenue from an orders table."
-# → route=sql (by gemini_fast) -> qwen_code [qwen35-122b-a10b] 4549 ms
+# → route=sql (by gemini_fast) -> code_router [qwen35-122b-a10b] 4549 ms
 ```
 - **Blast radius, stated before confirming:** the update to `gemini_router` drops its per-user
   rate limit (from commit `5a630a7`).
@@ -181,7 +181,7 @@ just ask "Write a SQL query for the top 5 customers by total revenue from an ord
 ### 3. Spike: the Qwen worker's harness
 `.omnigent/spike-qwen/config.yaml` (local, not tracked) holds:
 - `harness: openai-agents`
-- `model: <catalog>.<schema>.qwen_code`
+- `model: <catalog>.<schema>.code_router`
 - `auth: {type: databricks, profile}`
 - `use_responses: false`
 

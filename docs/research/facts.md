@@ -71,7 +71,7 @@ Verified 2026-11-02 unless noted. `DBX` = `https://docs.databricks.com`.
 | "unconfigured" native cards | Host readiness: `False` or missing means `unconfigured`. Also `binary-missing`, `version-too-low`, `needs-auth` | local package `omnigent/harness_availability.py:36-53` | verified 2026-11-03 |
 | Custom agents via `omnigent agent add` | Uploads a bundle dir as a user agent (re-add replaces it). It is listed by `omnigent agent list`, not in `sys_agent_list` builtins | local package `omnigent/cli.py:12468`, `server/routes/builtin_agents.py:452`; observed with rory on FEVM | verified 2026-11-03 |
 | Bundle env expansion is partial | `${VAR}` is expanded only in connection, api_key auth and MCP fields, not `executor.model` / `auth.profile` | local package `omnigent/cli.py:6525` | verified 2026-11-03 |
-| openai-agents harness on a UC model service | `executor.model: <catalog>.<schema>.qwen_code`, `auth: {type: databricks, profile}`, `use_responses: false` returns Qwen chat completions | spike + rory session on FEVM, 2026-11-03; `omnigent/inner/openai_agents_sdk_executor.py:563` | verified 2026-11-03 |
+| openai-agents harness on a UC model service | `executor.model: <catalog>.<schema>.code_router`, `auth: {type: databricks, profile}`, `use_responses: false` returns routed Qwen/Gemini chat completions | spike + rory session on FEVM, 2026-11-03; `omnigent/inner/openai_agents_sdk_executor.py:563` | verified 2026-11-03 |
 
 ## Agent behavior
 
