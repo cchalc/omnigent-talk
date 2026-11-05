@@ -177,6 +177,20 @@ traffic rounds="3" split="40":
     for ((i = 1; i <= $1; i++)); do echo "round $i of $1"; {{talk}} router-demo --file demos/routing/prompts.txt; {{talk}} router-demo --file demos/routing/prompts-extended.txt; done
     {{talk}} burst gemini_router -n "$2" --tag traffic
 
+# === SMART ROUTING (Beta; demos/smart-routing/README.md) ===
+
+# Preflight: does the Omnigent server offer Smart Routing, and does the gateway router answer?
+smart-routing-status:
+    {{talk}} smart-routing status
+
+# The router's pick and rationale for each prompt, per family. Runs no model on the prompts
+smart-routing-preview family="":
+    {{talk}} smart-routing preview ${1:+--family "$1"}
+
+# Calls that carried a Smart Router name in system.ai_gateway.usage (last 7 days, your rows)
+smart-routing-usage:
+    databricks experimental aitools tools query demos/smart-routing/usage.sql --profile "$DBX_PROFILE"
+
 # === ROUTING METRICS ===
 
 # Print the routing dashboard's URL (deployed with `just gateway-deploy`)

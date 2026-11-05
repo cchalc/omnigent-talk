@@ -151,6 +151,37 @@ def cmd_render_agent(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_smart_routing(a: argparse.Namespace) -> int:
+    from omnigent_talk import smart_routing
+
+    gw = gateway.connect()
+    if a.action == "status":
+        info = smart_routing.server_info(gw, gateway.require_env("OMNI_SERVER"))
+        print(
+            f"Omnigent server: smart_routing_enabled={info['smart_routing_enabled']} "
+            f"sources={info['smart_routing_sources']}"
+        )
+        pick = smart_routing.select(gw, "Rename a variable in a short Python script.", "claude")
+        print(
+            f"Unity Gateway router ({smart_routing.ROUTER}): HTTP {pick.status} "
+            f"-> {pick.model or pick.error}"
+        )
+        return 0 if pick.model else 1
+    prompts = [line.strip() for line in Path(a.file).read_text().splitlines()]
+    prompts = [line for line in prompts if line and not line.startswith("#")]
+    failed = 0
+    for prompt in prompts:
+        print(prompt[:96])
+        for family in a.family or list(smart_routing.MENUS):
+            pick = smart_routing.select(gw, prompt, family)
+            failed += pick.model is None
+            print(
+                f"  {family:<6} -> {pick.model or 'HTTP ' + str(pick.status)}: "
+                f"{pick.rationale or pick.error}"
+            )
+    return 1 if failed else 0
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="omnigent-talk")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -204,6 +235,14 @@ def parser() -> argparse.ArgumentParser:
     )
     agent.add_argument("name")
     agent.set_defaults(func=cmd_render_agent)
+
+    smart = sub.add_parser(
+        "smart-routing", help="Smart Routing (Beta): server status, or preview the router's picks"
+    )
+    smart.add_argument("action", choices=["status", "preview"])
+    smart.add_argument("--file", default="demos/smart-routing/prompts.txt")
+    smart.add_argument("--family", action="append", choices=["claude", "codex"])
+    smart.set_defaults(func=cmd_smart_routing)
 
     bud = sub.add_parser("budget", help="print an account budget body (apply it yourself)")
     bud.add_argument("--per-user-usd", type=float, default=1.0)

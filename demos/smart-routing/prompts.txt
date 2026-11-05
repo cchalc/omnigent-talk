@@ -1,0 +1,9 @@
+# One prompt per line for `just smart-routing-preview`, from trivial to cross-cutting.
+# The router reads the prompt only: length, error text, file references, how many areas it spans.
+Fix the typo in README.md line 3.
+Rename the variable `cnt` to `count` in src/omnigent_talk/routing.py.
+Add a unit test for parse_label in tests/test_router.py covering an empty answer.
+Why does this fail? TypeError: 'NoneType' object is not subscriptable at router.py line 88 in classify, called from cli.py line 40.
+Our pytest run is flaky: test_burst passes alone but fails in the full suite with a 429 from the gateway mock. Find the shared state and fix it.
+Refactor the gateway client so router.py, gemini_shim.py, routing.py and cli.py share one auth and retry layer, keep every public function signature, and update the tests in all four test files.
+Design a migration from per-user rate limits to per-team budgets across the bundle, the router, the dashboard and the docs, with a rollback plan and no downtime for the live demo.
