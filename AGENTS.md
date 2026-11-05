@@ -12,6 +12,9 @@ it stands. Keep it passing.
 | `src/omnigent_talk/` | Demo logic: gateway client, agy shim, routing tallies, memory, sandbox, budget |
 | `tests/` | Offline tests. No `__init__.py`, so pytest resolves them by path |
 | `databricks.yml`, `resources/` | Bundle for the Unity Gateway schema and model services |
+| `analytics/` | Separate bundle for the bakehouse analytics demo: build job, metric views, dashboard, Genie agent. It does not own the schema, so its destroy can't touch the model services |
+| `skills/` | Portable agent skills, registered as Unity Catalog skills in the demo schema by `just skills-sync` |
+| `agents/` | One Omnigent agent bundle per harness (agy, Claude Code, Codex, pi), sharing one prompt and `skills/` |
 | `demos/` | Per-demo READMEs and SQL |
 | `docs/` | Plan, fact sheet, setup log |
 | `talk/` | Talk content and fallbacks |
