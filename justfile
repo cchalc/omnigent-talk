@@ -181,3 +181,7 @@ dashboard-url:
 # The dashboard's routing breakdown, in the terminal
 routing-metrics:
     databricks experimental aitools tools query demos/routing/metrics.sql --profile "$DBX_PROFILE"
+
+# Per-coding-agent, per-session calls from system.ai_gateway.usage (your own rows, last 7 days)
+agent-calls:
+    databricks experimental aitools tools query demos/routing/agent-calls.sql --profile "$DBX_PROFILE"
