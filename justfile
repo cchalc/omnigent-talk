@@ -172,6 +172,11 @@ ask prompt:
 router-demo:
     {{talk}} router-demo
 
+# Generate demo traffic: N rounds of both router corpora plus a gemini_router split burst
+traffic rounds="3" split="40":
+    for ((i = 1; i <= $1; i++)); do echo "round $i of $1"; {{talk}} router-demo --file demos/routing/prompts.txt; {{talk}} router-demo --file demos/routing/prompts-extended.txt; done
+    {{talk}} burst gemini_router -n "$2" --tag traffic
+
 # === ROUTING METRICS ===
 
 # Print the routing dashboard's URL (deployed with `just gateway-deploy`)
