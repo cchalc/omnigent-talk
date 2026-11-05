@@ -21,6 +21,7 @@ Verified 2026-11-02 unless noted. `DBX` = `https://docs.databricks.com`.
 | Skills REST API (Beta, Oct 12 2026) | "The Unity Gateway Skills REST API is now available in Beta" | DBX/gcp/en/ai-gateway/skill-reference | verified |
 | Skills audit logs (Oct 30 2026) | "Audit logs record skill list, load, and file fetch events under the `aiGatewaySkills` service." | DBX/gcp/en/admin/account-settings/audit-logs#ai-gateway-skills | verified |
 | Central coding-agent config (Sep 22 2026) | "Organizations can now centrally configure coding agents: models, MCP servers, skills, a default harness" | DBX/gcp/en/ai-gateway/coding-agent-configure-govern | verified |
+| Coding-agent config schema | Agent enums are only `CODING_AGENT_CLAUDE_CODE` and `CODING_AGENT_CODEX` (no Gemini CLI). Per agent: one model source (`model_services` / `model_provider_service` / `unity_catalog_location`), `default_models` (Claude also `default_{opus,sonnet,haiku,fable}_model`), `smart_routing.enabled`, `tracing.enabled`, `http_headers`. Top level: `mcp_servers`, `skills`, `smart_defaults{budget_id, tiers}` | DBX/aws/en/ai-gateway/coding-agent-config-schema | verified 2026-11-03 |
 | `ug` CLI (Sep 22 2026) | "Use the Unity Gateway CLI (`ug`) to connect Claude Code, Codex, Pi, and more to Unity Gateway with one command." | DBX/gcp/en/ai-gateway/coding-agent-quickstart | verified |
 | Gemini CLI supported | `ug gemini`. Antigravity not listed | DBX/gcp/en/ai-gateway/coding-agent-supported-agents | verified |
 | Native Gemini API route on Unity Gateway | `POST <ws>/ai-gateway/gemini/v1beta/models/system.ai.gemini-3-8-flash:generateContent` (Bearer) returns a Gemini-native response incl. `thoughtSignature`. Omnigent's agy adapter uses this route | probe on fevm-cjc workspace, 2026-11-02; omnigent `harnesses/antigravity_native/gateway.py` | verified |
@@ -65,3 +66,15 @@ Verified 2026-11-02 unless noted. `DBX` = `https://docs.databricks.com`.
 | Agent YAML | `name`, `prompt`, `executor.{harness, model, auth}`, `policies`; no `extends` | https://github.com/omnigent-ai/omnigent/blob/main/docs/AGENT_YAML_SPEC.md | verified; `executor.harness` vs local parser OPEN |
 | Latest release | v0.20.0 (2026-10-28) | https://github.com/omnigent-ai/omnigent/releases | verified |
 | Full scope | Polly / Debby bundled agents, scheduled tasks, inbox / async calls, browser tools, skills, Slack (`omni integration slack`), cloud sandboxes (`omni sandbox`: modal / daytona / islo), REST API, macOS app, mobile | https://github.com/omnigent-ai/omnigent ; https://omnigent.ai/ ; `omni --help` | verified |
+| Where the agent picker's entries come from | `sys_agent_list` merges `builtins` (`GET /v1/agents`), `session_agents` (one row per session) and `local_configs` (`<cwd>/.omnigent/agent-configs/*.yaml`, top level only) | local package `omnigent/runner/tool_dispatch.py:638,5797,5990` (0.22.0.dev0) | verified 2026-11-03 |
+| Polly and debby are packaged bundles | Seeded at server start from `omnigent/resources/examples/{polly,debby}/`, filtered by `OMNIGENT_SEEDED_AGENTS` | local package `omnigent/server/app.py:1424,1492`, `server/seeded_agents.py:20` | verified 2026-11-03 |
+| "unconfigured" native cards | Host readiness: `False` or missing means `unconfigured`. Also `binary-missing`, `version-too-low`, `needs-auth` | local package `omnigent/harness_availability.py:36-53` | verified 2026-11-03 |
+| Custom agents via `omnigent agent add` | Uploads a bundle dir as a user agent (re-add replaces it). It is listed by `omnigent agent list`, not in `sys_agent_list` builtins | local package `omnigent/cli.py:12468`, `server/routes/builtin_agents.py:452`; observed with rory on FEVM | verified 2026-11-03 |
+| Bundle env expansion is partial | `${VAR}` is expanded only in connection, api_key auth and MCP fields, not `executor.model` / `auth.profile` | local package `omnigent/cli.py:6525` | verified 2026-11-03 |
+| openai-agents harness on a UC model service | `executor.model: <catalog>.<schema>.qwen_code`, `auth: {type: databricks, profile}`, `use_responses: false` returns Qwen chat completions | spike + rory session on FEVM, 2026-11-03; `omnigent/inner/openai_agents_sdk_executor.py:563` | verified 2026-11-03 |
+
+## Agent behavior
+
+| Claim | Quote / detail | URL | Status |
+|---|---|---|---|
+| Agent Behavior format | Behavior specs describe recurring conduct for trace review and evaluation, live under `.agents/behaviors/<name>/BEHAVIOR.md`, and version with the code they govern | https://agentbehavior.dev/ ; https://github.com/braintrustdata/agentbehavior | verified 2026-11-03 |

@@ -1,0 +1,8 @@
+resources:
+  dashboards:
+    routing:
+      display_name: "omnigent-talk: Unity Gateway routing"
+      file_path: ../dashboards/routing.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      # Viewers see the data through the publisher's access to system.ai_gateway.usage.
+      embed_credentials: true

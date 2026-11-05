@@ -535,6 +535,30 @@ exit $ok
 - [ ] **Step 6: Full dry run** with a timer: preflight, then the whole talk. Log overruns and failures in `lessons.md` and fix them. Repeat until it runs clean twice.
 - [ ] **Step 7:** Overwrite `checkpoint.md` and commit (`docs: talk outline, notes, runbook`).
 
+### Task 15: Project agent guidance and behavior evaluation
+
+**Files:**
+- Modify: `AGENTS.md`; keep `CLAUDE.md` as `@AGENTS.md`
+- Create: `.config/wt.toml`, `.agents/behaviors/*/BEHAVIOR.md`, MLflow evaluation runner
+
+**Interfaces:**
+- Worktrunk owns child worktrees and runs `just check` before merge. JJ 0.45.1 is used only in
+  the primary worktree because it cannot initialize inside Git worktrees.
+- Four Agent Behavior specs govern Databricks data processing, infrastructure deployment,
+  evidence-backed talk content, and rehearsal-ready demos.
+- `just behavior-eval-setup`, `just behavior-eval-smoke`, and `just behavior-eval` use the
+  user-selected `DBX_PROFILE` and opt-in Databricks MLflow experiment/model settings.
+
+- [x] **Step 1:** Make AGENTS.md the concise source of truth and preserve CLAUDE.md's import.
+- [x] **Step 2:** Add the Worktrunk pre-merge check and document the JJ/worktree boundary.
+- [x] **Step 3:** Add the four behavior specs in the agentbehavior.dev format.
+- [x] **Step 4:** Add a public-safe 60-case synthetic trajectory corpus, managed MLflow datasets,
+  and registered `make_judge()` scorers. Keep workspace runs outside `just check`.
+- [ ] **Step 5:** Run the five-case smoke evaluation, then the full evaluation. Record run IDs and
+  scorer agreement on the talk's receipts slide without exposing the experiment URL.
+- [ ] **Step 6:** Rehearse the behaviors as a short build-log beat: show one passing trajectory and
+  one caught failure, citing agentbehavior.dev from the fact sheet.
+
 ---
 
 ## Decisions (presenter)
@@ -575,6 +599,8 @@ exit $ok
 - **2026-11-02 — Isolate Omnigent per workspace with `OMNIGENT_CONFIG_HOME` + `OMNIGENT_DATA_DIR`.** *What:* the data dir also holds `auth_tokens.json` and the host daemon pidfile, so `~/.omnigent-fevm` separates FEVM completely from the daily-use `~/.omnigent`. *Why it matters:* demo setup can't break the presenter's real config. *Tags:* #omnigent #config
 - **2026-11-03 — Each harness speaks a different gateway dialect, so model names differ.** *What:* direct pi on a `kind: databricks` provider uses `/serving-endpoints` (needs `databricks-claude-sonnet-5-5`; `system.ai.*` → 404), claude-sdk uses the Anthropic surface (`system.ai.claude-sonnet-5-5`), and native agy uses the native Gemini route through Omnigent's adapter. All four FEVM surfaces returned 200 when probed directly. *Why it matters:* "the gateway is broken" was wrong every time. Probe the surface before blaming it. *Tags:* #harness-engineering #gateway #talk
 - **2026-11-03 — `omni agy --model` was dropped on the remote path.** *What:* on 0.22.0.dev0 the runner logged `model_override=None`, so agy asked for its default `gemini-3.1-pro-preview` and the Databricks adapter refused it as "not unambiguous". `/model` → Gemini 3.8 Flash inside agy fixed it. *Why it matters:* the demo picks the model in-TUI. It may be worth an upstream issue. *Tags:* #antigravity #omnigent #bug
+- **2026-11-03 — Agent sessions leak routing env into everything they launch.** *What:* a shell inside Claude Code (itself under an Omnigent runner) exports about 60 vars (`ANTHROPIC_BASE_URL`, `OMNIGENT_SERVER`, `OMNIGENT_DATABRICKS_ORG_PIN`, `OMNIGENT_CREDENTIAL_SERVICE_*`, …). A FEVM host daemon started there sent claude-sdk calls to the *other* workspace's gateway, despite `profile=fevm-cjc`. *Why it matters:* nested meta-harnesses need hermetic launchers. `omni-fevm` now `env -u`s those prefixes. *Tags:* #harness-engineering #omnigent #talk
+- **2026-11-03 — Logs show intent; usage rows show truth.** *What:* after the env fix, claude-sdk's runner log said `base_url=<fevm>`, yet no FEVM usage row ever appeared, for claude-sdk or native Claude. Likely cause: org-managed Claude Code settings (`env.ANTHROPIC_BASE_URL`, `apiKeyHelper`, policy precedence) applied by the `claude` CLI underneath both. *Why it matters:* on the presenter's laptop, only Antigravity/Gemini and pi demonstrably land on FEVM. Build the "traced on this workspace" demo around agy, and present the Claude pinning as device-level governance. *Tags:* #observability #governance #talk
 - **2026-11-03 — `system.ai_gateway.usage` lags about 20 min and is account-wide.** *What:* the newest row was 22 min old, and the table held other users' traffic. Filter with `requester = current_user()`. *Why it matters:* on stage, show a query over calls made *before* the talk, or use the unified trace table if it's enabled. *Tags:* #observability #talk
 - **2026-11-02 — A research subagent was blocked by auto mode.** *What:* the Databricks-docs research subagent was refused, so the docs were fetched inline instead. *Why it matters:* permission modes are a visible safety feature, and plans should not depend on a single delegation path. *Tags:* #permissions #talk
 

@@ -11,12 +11,12 @@ Why it matters for the talk: Omnigent switches harnesses on the developer's side
 Status 2026-11-03: on FEVM (`fevm-cjc`), `GET /api/ai-gateway/v2/coding-agent-configs` returns `{}` (reachable, nothing published). `ug` `0.1.0+8de04d7` is installed.
 
 - [ ] Enable the **Unity Gateway Managed Configuration** preview on the FEVM workspace (Settings → Previews). Needs a workspace admin.
-- [ ] Write `config/ug/coding-agent-config.json` with no workspace IDs (public repo):
-  - [ ] `enabled_agents` (Claude Code, Codex, plus Gemini CLI if supported) and `default_agent`
-  - [ ] per-agent model source via `model_services`, with `default_model`: Claude → `system.ai.claude-sonnet-5-5` (Anthropic Messages), Codex → `system.ai.gpt-5-5` (Responses), Gemini → `system.ai.gemini-3-8-flash`
-  - [ ] `mcp_servers`: one demo MCP server
-  - [ ] `skills`: the demo skill from Task 10, so the Skills tab shows loads
-  - [ ] Unity Gateway features: Smart Routing and tracing, where supported
+- [x] Write `config/ug/coding-agent-config.json` with no workspace IDs (public repo). Draft saved; see `config/ug/README.md` for the placeholders to replace before publishing:
+  - [x] `enabled_agents` (Claude Code, Codex) and `default_agent`. Gemini CLI is not supported: the only agent enums are Claude Code and Codex
+  - [x] per-agent model source via `model_services`, with `default_model`: Claude → `system.ai.claude-sonnet-5-5`, Codex → `system.ai.gpt-5-5`. Still to check: are the Opus and Haiku 5.5 services served on FEVM?
+  - [ ] `mcp_servers`: one demo MCP server (placeholder `omnigent_talk.demo.<mcp-server>`)
+  - [ ] `skills`: the demo skill from Task 10, so the Skills tab shows loads (placeholder `omnigent_talk.demo.gcp-databricks-facts`)
+  - [x] Unity Gateway features: per-agent `smart_routing` and `tracing` enabled; `smart_defaults` deferred until the budget exists
 - [ ] Publish it. UI: **Unity Gateway → Govern → Agent configuration → Edit configuration → Save**. Or CLI: `databricks api post /api/ai-gateway/v2/coding-agent-configs --profile fevm-cjc --json @config/ug/coding-agent-config.json` (update with `PATCH …/{id}?update_mask=…`).
 - [ ] Grant `EXECUTE` on the chosen `system.ai.*` model services to the demo user or group.
 - [ ] Set a **budget** with **Block usage** on, so `ug usage` has a limit to show.
@@ -29,5 +29,11 @@ Status 2026-11-03: on FEVM (`fevm-cjc`), `GET /api/ai-gateway/v2/coding-agent-co
 - [ ] Add the steps to `docs/setup-log.md` and record a fallback clip in `talk/fallbacks/`.
 
 ## Already in flight
-- [ ] Fill in the harness traffic matrix in `docs/omni-fevm.md` once `system.ai_gateway.usage` catches up (it lags about 20 min).
-- [ ] Re-run the native Claude Code check under `omni-fevm` (closed before its reply was captured).
+- [x] Round 1 harness traffic matrix: only agy (`ai_gateway.usage`) and pi (`serving.endpoint_usage`) landed on FEVM.
+- [x] Fix: `databricks-fevm` is now the default for `anthropic` + `pi` in `~/.omnigent-fevm`. claude-sdk and native Claude replied on round 2.
+- [x] Round 2 Claude calls missed FEVM. Cause: inherited agent-session env. Fixed with the hermetic `omni-fevm` and a host restart. Round 3 claude-sdk is confirmed on FEVM via the runner log.
+- [x] Round 3 usage: claude-sdk v3 and native Claude v3 have **no FEVM rows** (likely org-managed Claude Code settings). On this laptop only agy and pi land on FEVM. See the final matrix in `docs/omni-fevm.md`.
+- [ ] Optional: show Claude on FEVM from a machine or user without org-managed Claude settings, or via `ug` managed config, and confirm with a usage row.
+- [ ] Demo: launch `omni-fevm` from a plain terminal, not from inside an agent session (the wrapper is hermetic now, but keep it simple).
+- [ ] **Codex on FEVM:** `databricks-fevm` fails with "run `ucode configure`". Decide whether to run `ucode configure` / `ug configure` against FEVM. It rewrites the shared `~/.codex`, so it's the presenter's call. This overlaps with the `ug` section above.
+- [ ] Unified trace table on FEVM (AI Gateway → Govern → Traces), so the demo doesn't depend on the 20-min usage lag.
