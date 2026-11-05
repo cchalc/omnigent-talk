@@ -1,0 +1,36 @@
+# Bakehouse analytics for the talk: PII-free copies of samples.bakehouse, Gemini review sentiment,
+# metric views, an AI/BI dashboard and a Genie agent. Run through `just analytics-*`, which passes
+# the profile and the catalog/schema from .env.local. Nothing workspace-specific lives here.
+#
+# Separate from the gateway bundle on purpose. The objects land in the gateway bundle's schema,
+# but this bundle never declares that schema, so `just analytics-destroy` can't drop it or the
+# model services in it. The tables and metric views are made by the job's SQL, not by bundle
+# resources, so destroy leaves them in place too.
+bundle:
+  name: omnigent_talk_analytics
+  # Genie spaces deploy only with the direct engine.
+  engine: direct
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Catalog that holds the demo schema (set in .env.local as CATALOG)
+  schema:
+    description: Existing schema, owned by the gateway bundle, for the bakehouse objects
+    default: omnigent_talk
+  warehouse_id:
+    description: SQL warehouse for the job, dashboard and Genie, looked up by name so no ID is committed
+    lookup:
+      warehouse: Serverless Starter Warehouse
+  sentiment_endpoint:
+    description: >-
+      Model ai_query calls to score reviews. The custom Unity Gateway service
+      <catalog>.<schema>.gemini_general is the goal, but ai_query can't reach custom UC model
+      services on the demo workspace, so the default is the system model service.
+    default: system.ai.gemini-3-8-flash
+
+targets:
+  dev:
+    default: true

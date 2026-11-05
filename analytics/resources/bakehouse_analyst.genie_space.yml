@@ -1,0 +1,101 @@
+# Genie agent over the bakehouse metric views and tables. serialized_space is inline so the
+# catalog and schema come from bundle variables; nothing workspace-specific is committed.
+# Metric views are listed under tables: the API stores them there.
+# Rules the API enforces: version 2, 32-char lowercase hex ids, id-keyed arrays sorted by id,
+# data sources sorted by identifier, at most one text instruction. tests/test_analytics_bundle.py
+# checks them offline.
+resources:
+  genie_spaces:
+    bakehouse_analyst:
+      title: "omnigent-talk: Bakehouse analyst"
+      description: >-
+        Ask about bakehouse sales and review sentiment. Backed by the bakehouse_sales_metrics and
+        bakehouse_review_metrics metric views and PII-free copies of samples.bakehouse.
+      warehouse_id: ${var.warehouse_id}
+      serialized_space:
+        version: 2
+        config:
+          sample_questions:
+            - id: "12081806d864a58eed84df4124b09c39"
+              question: ["Which supplier ingredients are linked to the most revenue?"]
+            - id: "2696b6fbe72cd27fcdf2d49568ad81a2"
+              question: ["How many reviews does each franchise city have?"]
+            - id: "45f3c31bda7286bc2355756a0f224a32"
+              question: ["How did total revenue trend by day?"]
+            - id: "73ab999555223dd1fd1a099ef6873ad8"
+              question: ["What share of revenue comes from each payment method?"]
+            - id: "a36b3bc849df4612e7bcf4b98a72fe13"
+              question: ["What are the top 5 franchises by revenue?"]
+            - id: "ade51bd17beeab2a94bd672ed4d7399a"
+              question: ["How many units of each product were sold?"]
+            - id: "b17bc29cc876f559cee8a87484b33884"
+              question: ["How does revenue compare across franchise sizes?"]
+            - id: "ba6424ec3830f5ef0708137db2c16609"
+              question: ["What is the average transaction value by day?"]
+            - id: "c32a7fe72f83b4b4a67e01fbd7dab38a"
+              question: ["What is revenue by customer country?"]
+            - id: "f7fb60470f32652e0294d8780200619c"
+              question: ["What is the sentiment mix of reviews for each franchise?"]
+        data_sources:
+          tables:
+            - identifier: ${var.catalog}.${var.schema}.bakehouse_customers
+            - identifier: ${var.catalog}.${var.schema}.bakehouse_franchises
+              column_configs:
+                - column_name: city
+                  enable_entity_matching: true
+                  enable_format_assistance: true
+                - column_name: country
+                  enable_entity_matching: true
+                  enable_format_assistance: true
+                - column_name: franchise_name
+                  enable_entity_matching: true
+                  enable_format_assistance: true
+                - column_name: size
+                  enable_entity_matching: true
+                  enable_format_assistance: true
+            - identifier: ${var.catalog}.${var.schema}.bakehouse_review_metrics
+            - identifier: ${var.catalog}.${var.schema}.bakehouse_review_sentiment
+              column_configs:
+                - column_name: sentiment
+                  enable_entity_matching: true
+                  enable_format_assistance: true
+            - identifier: ${var.catalog}.${var.schema}.bakehouse_reviews
+            - identifier: ${var.catalog}.${var.schema}.bakehouse_sales_metrics
+            - identifier: ${var.catalog}.${var.schema}.bakehouse_suppliers
+              column_configs:
+                - column_name: ingredient
+                  enable_entity_matching: true
+                  enable_format_assistance: true
+            - identifier: ${var.catalog}.${var.schema}.bakehouse_transactions
+              column_configs:
+                - column_name: payment_method
+                  enable_entity_matching: true
+                  enable_format_assistance: true
+                - column_name: product
+                  enable_entity_matching: true
+                  enable_format_assistance: true
+        instructions:
+          text_instructions:
+            - id: "50282ef02204fffc507d5cc39c5fc0ee"
+              content:
+                - "Answer sales questions from bakehouse_sales_metrics and review questions from bakehouse_review_metrics, using MEASURE() on their governed measures rather than re-deriving totals from the raw tables. "
+                - "Revenue is in US dollars. Sales cover 1 to 17 May 2024; reviews cover 20 to 31 May 2024. "
+                - "Franchise names are not unique, so always show Franchise City next to Franchise Name. "
+                - "Supplier Name and Supplier Ingredient are Unknown for stores whose supplier is missing from the sample; say so rather than dropping them. "
+                - "Sentiment was scored once per review by Gemini and is one of positive, negative, mixed or neutral."
+          example_question_sqls:
+            - id: "7b3db96f940902b70ad74792684e44a2"
+              question: ["What is the sentiment mix of reviews for each franchise?"]
+              sql:
+                - "SELECT `Franchise Name`, `Franchise City`, `Sentiment`, MEASURE(`Review Count`) AS reviews\n"
+                - "FROM ${var.catalog}.${var.schema}.bakehouse_review_metrics\n"
+                - "GROUP BY ALL\n"
+                - "ORDER BY `Franchise Name`, `Franchise City`, reviews DESC"
+            - id: "e03a26e41b6326a1eccac6e2e63f4feb"
+              question: ["What are the top 5 franchises by revenue?"]
+              sql:
+                - "SELECT `Franchise Name`, `Franchise City`, MEASURE(`Total Revenue`) AS revenue\n"
+                - "FROM ${var.catalog}.${var.schema}.bakehouse_sales_metrics\n"
+                - "GROUP BY ALL\n"
+                - "ORDER BY revenue DESC\n"
+                - "LIMIT 5"

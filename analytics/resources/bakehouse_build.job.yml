@@ -1,0 +1,37 @@
+# Builds every bakehouse object in order. Each step is re-run safe: copies and metric views are
+# replaced, and sentiment only scores reviews that have no score yet.
+resources:
+  jobs:
+    bakehouse_build:
+      name: "omnigent-talk: bakehouse build"
+      description: >-
+        Copies samples.bakehouse without PII, scores reviews with Gemini, then creates the
+        bakehouse metric views that feed the dashboard and the Genie agent.
+      max_concurrent_runs: 1
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: sentiment_endpoint
+          default: ${var.sentiment_endpoint}
+      tasks:
+        - task_key: copy_tables
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../sql/01_copy_tables.sql
+        - task_key: review_sentiment
+          depends_on:
+            - task_key: copy_tables
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../sql/02_review_sentiment.sql
+        - task_key: metric_views
+          depends_on:
+            - task_key: review_sentiment
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            file:
+              path: ../sql/03_metric_views.sql

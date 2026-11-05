@@ -62,6 +62,28 @@ gateway-deploy:
 gateway-destroy:
     {{bundle}} destroy --target dev
 
+# === BAKEHOUSE ANALYTICS (bundle: analytics/) ===
+
+# Validate the analytics bundle against the workspace
+[working-directory: 'analytics']
+analytics-validate:
+    {{bundle}} validate --strict --target dev
+
+# Create or update the build job, the dashboard and the Genie agent
+[working-directory: 'analytics']
+analytics-deploy:
+    {{bundle}} deploy --target dev
+
+# Build the bakehouse tables, review sentiment and metric views (re-run safe)
+[working-directory: 'analytics']
+analytics-run:
+    {{bundle}} run bakehouse_build --target dev
+
+# Delete the job, dashboard and Genie agent. Leaves the schema, tables and model services
+[working-directory: 'analytics']
+analytics-destroy:
+    {{bundle}} destroy --target dev
+
 # === AGENT BEHAVIOR EVALUATION (opt-in; creates MLflow state and uses judge tokens) ===
 
 # Create/update managed datasets and register the four behavior judges

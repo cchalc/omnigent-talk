@@ -1,0 +1,10 @@
+resources:
+  dashboards:
+    bakehouse:
+      display_name: "omnigent-talk: Bakehouse sales and sentiment"
+      file_path: ../dashboards/bakehouse.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      # Dataset queries name only the object (FROM bakehouse_sales_metrics); these fill in the
+      # catalog and schema, so no catalog is committed in the JSON.
+      dataset_catalog: ${var.catalog}
+      dataset_schema: ${var.schema}
