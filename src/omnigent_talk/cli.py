@@ -140,6 +140,49 @@ def cmd_budget(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_skills_sync(a: argparse.Namespace) -> int:
+    from omnigent_talk import uc_skills
+
+    try:
+        api = uc_skills.connect()
+        try:
+            results = api.sync(Path("skills"), dry_run=a.dry_run)
+        finally:
+            api.client.close()
+    except uc_skills.SkillsApiError as error:
+        print(f"skills sync failed: {error}", file=sys.stderr)
+        return 1
+    for result in results:
+        if a.dry_run and result.status != "unchanged":
+            action = f"would {result.status.removesuffix('d')}"
+        else:
+            action = result.status
+        print(f"{result.skill_id}: {action} ({result.bundle_name})")
+    return 0
+
+
+def cmd_skills_list(a: argparse.Namespace) -> int:
+    from omnigent_talk import uc_skills
+
+    try:
+        api = uc_skills.connect()
+        try:
+            skills = api.list_skills()
+        finally:
+            api.client.close()
+    except uc_skills.SkillsApiError as error:
+        print(f"skills list failed: {error}", file=sys.stderr)
+        return 1
+    for skill in skills:
+        name = skill.get("name", "")
+        if isinstance(name, str) and name:
+            full_name = name.removeprefix("skills/")
+            display_name = full_name if a.full else full_name.rsplit(".", 1)[-1]
+            status = "finalized" if skill.get("finalize_time") else "draft"
+            print(f"{display_name}: {status}")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="omnigent-talk")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -197,6 +240,15 @@ def parser() -> argparse.ArgumentParser:
         help="apply the cap to every user in the workspace, not just you (shared workspaces!)",
     )
     bud.set_defaults(func=cmd_budget)
+
+    skills = sub.add_parser("skills", help="manage portable skills in Unity Catalog (Beta)")
+    skill_commands = skills.add_subparsers(dest="skills_cmd", required=True)
+    skills_sync = skill_commands.add_parser("sync", help="create or update repo skill bundles")
+    skills_sync.add_argument("--dry-run", action="store_true", help="show changes without writes")
+    skills_sync.set_defaults(func=cmd_skills_sync)
+    skills_list = skill_commands.add_parser("list", help="list skills in CATALOG.omnigent_talk")
+    skills_list.add_argument("--full", action="store_true", help="show catalog-qualified names")
+    skills_list.set_defaults(func=cmd_skills_list)
     return p
 
 
