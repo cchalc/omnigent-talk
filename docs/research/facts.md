@@ -106,3 +106,24 @@ Verified 2026-11-02 unless noted. `DBX` = `https://docs.databricks.com`.
 | Claim | Quote / detail | URL | Status |
 |---|---|---|---|
 | Agent Behavior format | Behavior specs describe recurring conduct for trace review and evaluation, live under `.agents/behaviors/<name>/BEHAVIOR.md`, and version with the code they govern | https://agentbehavior.dev/ ; https://github.com/braintrustdata/agentbehavior | verified 2026-11-03 |
+
+## Replay story (added 2026-11-10)
+
+Rows backing claims in `docs/story/` that had none. "Source" means read from this repo or the installed Omnigent package, not run against a workspace.
+
+| Claim | Quote / detail | Source | Status |
+|---|---|---|---|
+| Usage-table lag | Repo docs disagree: about 20 minutes (`docs/omni-fevm.md`, `docs/gateway-governance.md`), up to an hour (`demos/model-services/README.md`, `demos/routing/usage.sql`). One check saw a 22-minute-old row | repo docs; `docs/setup-log.md` session 1 | OPEN: plan for an hour |
+| Usage-table read access | `demos/routing/usage.sql` says account and metastore admin by default; the FEVM row above records a workspace admin who could read it | repo docs | OPEN: check your own access |
+| Service routing rules | A traffic split picks a destination at random by weight. Fallbacks run in order only after a 429 or 5xx. A session header can pin a destination | header comment in `resources/model_services.yml` | source; not tested |
+| Unified chat echoes the service name | The `model` field of a unified chat reply from a custom service is the service name, not the serving model. Native Gemini returns `modelVersion` | `src/omnigent_talk/gateway.py` | source |
+| `ask` and `router-demo` print configured models | They print the model from `SERVICE_MODELS`, which is not the served model | `src/omnigent_talk/router.py` | source |
+| Task routing | The classifier labels a prompt; `sql` and `code` go to `qwen_code`, everything else to `gemini_general`; a keyword route is the fallback | `src/omnigent_talk/router.py` | source |
+| Budget scope | The budget body is account-level, per user, and can narrow only to a workspace | `src/omnigent_talk/budget.py` | source |
+| Harness registry and aliases | `--harness claude` is `claude-sdk`; `omni claude` is `claude-native`; there is no Gemini CLI harness, and agy is `antigravity-native` | `omnigent/harness_plugins.py` (0.22.0.dev0); `omni run --help` | source |
+| Config layers | Project config deep-merges only `harness`; `omni config set` accepts six keys | `omnigent/config.py`, `omnigent/cli.py` (0.22.0.dev0) | source |
+| Policy composition | DENY short-circuits, ASK accumulates, ALLOW chains; the default is fail-closed | `omnigent/runtime/policies/builder.py` (0.22.0.dev0) | source |
+| Policy field shape | The rory bundle writes `function: {path, arguments}`; the CEL row above writes `handler` / `factory_params`. Which the server accepts is unconfirmed | `agents/rory/config.yaml` | OPEN |
+| `approval_relay` fires | No run record shows the ASK firing; the test checks the policy text only | `tests/test_agent_bundles.py` | OPEN |
+| Direct pi on the workspace | Use a serving-endpoint name; `system.ai.*` returns 404 | `docs/setup-log.md` section 6, rows 3-4 | recorded run |
+| `omni agy --model` | Dropped on the remote path on 0.22.0.dev0; pick the model with `/model` in agy | `docs/setup-log.md` section 6, row 7 | recorded run |

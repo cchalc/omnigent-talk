@@ -10,7 +10,7 @@ What to say, what to show, and what not to claim. Read this before writing slide
 
 | Use | Model name | Where it appears |
 |---|---|---|
-| Live main model | `system.ai.gemini-3-8-flash` | `omni agy --model gemini-3.8-flash`, `GEMINI_MODEL`, smoke test, policy demo |
+| Live main model | `system.ai.gemini-3-8-flash` | `/model` → Gemini 3.8 Flash inside `omni agy` (`--model` is dropped on 0.22.0.dev0: [setup log §6](../docs/setup-log.md), [omni-fevm](../docs/omni-fevm.md)), `GEMINI_MODEL`, smoke test, policy demo |
 | Cheap contrast model | `system.ai.gemini-3-1-flash-lite` | `GEMINI_FLASH_MODEL`, routing / cost contrast |
 | Mentioned only | Gemini 4 Argon | one slide in segment 5 |
 
